@@ -12,6 +12,8 @@ pub mod memory_translation;
 pub mod interrupt_translation;
 pub mod device_translation;
 pub mod audit;
+pub mod security;
+pub mod enforcement;
 
 #[cfg(test)]
 mod tests;
@@ -27,3 +29,7 @@ pub use device_translation::{
     BlockDevice, BlockDeviceManager, NetworkDevice, NetworkDeviceManager,
 };
 pub use audit::{AuditLog, AuditEntry, AuditLevel};
+pub use security::{
+    Capability, PermissionTier, CapabilityGrant, CapabilityManager, SecurityPolicy, SecurityLevel, ReauthMethod,
+};
+pub use enforcement::{SecurityContext, SecurityEnforcer, PermissionChecker};

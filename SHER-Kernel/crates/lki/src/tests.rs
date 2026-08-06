@@ -9,6 +9,8 @@ mod tests {
         BlockDevice, BlockDeviceManager, BlockDeviceType, NetworkDevice, NetworkDeviceManager, NetDeviceType,
     };
     use crate::audit::{AuditLog, AuditEntry, AuditLevel, AuditFilter};
+    use crate::security::{Capability, PermissionTier, CapabilityGrant, CapabilityManager, SecurityPolicy, SecurityLevel, ReauthMethod};
+    use crate::enforcement::{SecurityContext, SecurityEnforcer, PermissionChecker};
     use crate::validation::Validator;
     use sher_common::ObjectId;
 
@@ -816,5 +818,320 @@ mod tests {
 
         let devices = manager.list_devices();
         assert_eq!(devices.len(), 3);
+    }
+
+    // ========================================================================
+    // SECURITY & CAPABILITY TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_capability_grant_new() {
+        let driver_id = ObjectId::new();
+        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+
+        assert_eq!(grant.driver_id, driver_id);
+        assert_eq!(grant.capability, Capability::AllocateMemory);
+        assert_eq!(grant.tier, PermissionTier::Low);
+    }
+
+    #[test]
+    fn test_capability_grant_with_duration() {
+        let driver_id = ObjectId::new();
+        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low)
+            .with_duration(1_800_000).unwrap();
+
+        assert_eq!(grant.lifetime_ms(), 1_800_000);
+    }
+
+    #[test]
+    fn test_capability_grant_duration_limit() {
+        let driver_id = ObjectId::new();
+        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::High);
+
+        // High tier max is 2 hours (7,200,000 ms)
+        let result = grant.with_duration(14_400_000);  // 4 hours
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_capability_grant_validity() {
+        let driver_id = ObjectId::new();
+        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        grant.granted_at_ms = 1000;
+        grant.expires_at_ms = 5000;
+
+        assert!(grant.is_valid(2000));
+        assert!(grant.is_valid(4999));
+        assert!(!grant.is_valid(5000));
+        assert!(!grant.is_valid(6000));
+    }
+
+    #[test]
+    fn test_capability_grant_time_remaining() {
+        let driver_id = ObjectId::new();
+        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        grant.granted_at_ms = 1000;
+        grant.expires_at_ms = 5000;
+
+        assert_eq!(grant.time_remaining_ms(1000), 4000);
+        assert_eq!(grant.time_remaining_ms(3000), 2000);
+        assert_eq!(grant.time_remaining_ms(5000), 0);
+    }
+
+    #[test]
+    fn test_permission_tier_durations() {
+        assert_eq!(PermissionTier::Low.max_duration_ms(), 3_600_000);
+        assert_eq!(PermissionTier::Medium.max_duration_ms(), 86_400_000);
+        assert_eq!(PermissionTier::High.max_duration_ms(), 7_200_000);
+        assert_eq!(PermissionTier::Critical.max_duration_ms(), 1_800_000);
+    }
+
+    #[test]
+    fn test_capability_manager_grant() {
+        let mut manager = CapabilityManager::new();
+        let driver_id = ObjectId::new();
+        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+
+        let result = manager.grant(grant);
+        assert!(result.is_ok());
+        assert_eq!(manager.total_grants, 1);
+    }
+
+    #[test]
+    fn test_capability_manager_has_capability() {
+        let mut manager = CapabilityManager::new();
+        let driver_id = ObjectId::new();
+        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        grant.granted_at_ms = 1000;
+        grant.expires_at_ms = 5000;
+
+        manager.grant(grant).ok();
+
+        assert!(manager.has_capability(driver_id, Capability::AllocateMemory, 2000));
+        assert!(!manager.has_capability(driver_id, Capability::AllocateMemory, 6000));
+    }
+
+    #[test]
+    fn test_capability_manager_revoke() {
+        let mut manager = CapabilityManager::new();
+        let driver_id = ObjectId::new();
+        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+
+        manager.grant(grant).ok();
+        assert_eq!(manager.total_grants, 1);
+
+        let result = manager.revoke(driver_id, Capability::AllocateMemory);
+        assert!(result.is_ok());
+        assert_eq!(manager.revoked_grants, 1);
+    }
+
+    #[test]
+    fn test_security_policy_new() {
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Balanced);
+
+        assert_eq!(policy.driver_id, driver_id);
+        assert_eq!(policy.security_level, SecurityLevel::Balanced);
+        assert_eq!(policy.max_capability_tier, PermissionTier::High);
+    }
+
+    #[test]
+    fn test_security_policy_tier_limits() {
+        let driver_id = ObjectId::new();
+
+        let permissive = SecurityPolicy::new(driver_id, SecurityLevel::Permissive);
+        assert_eq!(permissive.max_capability_tier, PermissionTier::Critical);
+
+        let strict = SecurityPolicy::new(driver_id, SecurityLevel::Strict);
+        assert_eq!(strict.max_capability_tier, PermissionTier::Medium);
+
+        let critical = SecurityPolicy::new(driver_id, SecurityLevel::Critical);
+        assert_eq!(critical.max_capability_tier, PermissionTier::Low);
+    }
+
+    #[test]
+    fn test_security_policy_allows_tier() {
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Balanced);
+
+        assert!(policy.allows_tier(PermissionTier::Low));
+        assert!(policy.allows_tier(PermissionTier::Medium));
+        assert!(policy.allows_tier(PermissionTier::High));
+        assert!(!policy.allows_tier(PermissionTier::Critical));
+    }
+
+    #[test]
+    fn test_security_context_check_unrestricted() {
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+        let mut context = SecurityContext::new(driver_id, policy);
+
+        let result = context.check_operation(Capability::AllocateMemory, 1000);
+        assert!(result.is_ok());
+        assert_eq!(context.approved_operations, 1);
+    }
+
+    #[test]
+    fn test_security_context_check_with_grant() {
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Strict);
+        let mut context = SecurityContext::new(driver_id, policy);
+
+        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        grant.granted_at_ms = 1000;
+        grant.expires_at_ms = 5000;
+
+        context.capability_manager.grant(grant).ok();
+
+        let result = context.check_operation(Capability::AllocateMemory, 2000);
+        assert!(result.is_ok());
+        assert_eq!(context.approved_operations, 1);
+    }
+
+    #[test]
+    fn test_security_context_denial_rate() {
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Strict);
+        let mut context = SecurityContext::new(driver_id, policy);
+
+        let _ = context.check_operation(Capability::AllocateMemory, 1000);
+        let _ = context.check_operation(Capability::RegisterDevice, 1000);
+        let _ = context.check_operation(Capability::NetworkAccess, 1000);
+
+        assert_eq!(context.denied_operations, 3);
+        assert_eq!(context.denial_rate(), 100.0);
+    }
+
+    #[test]
+    fn test_security_enforcer_register() {
+        let mut enforcer = SecurityEnforcer::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Balanced);
+
+        let result = enforcer.register_driver(driver_id, policy);
+        assert!(result.is_ok());
+        assert_eq!(enforcer.contexts.len(), 1);
+    }
+
+    #[test]
+    fn test_security_enforcer_enforce() {
+        let mut enforcer = SecurityEnforcer::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+
+        let context_id = enforcer.register_driver(driver_id, policy).unwrap();
+
+        let result = enforcer.enforce(context_id, Capability::AllocateMemory, 1000);
+        assert!(result.is_ok());
+        assert_eq!(enforcer.total_checks, 1);
+    }
+
+    #[test]
+    fn test_security_enforcer_denial() {
+        let mut enforcer = SecurityEnforcer::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Strict);
+
+        let context_id = enforcer.register_driver(driver_id, policy).unwrap();
+
+        let result = enforcer.enforce(context_id, Capability::AllocateMemory, 1000);
+        assert!(result.is_err());
+        assert_eq!(enforcer.total_denials, 1);
+    }
+
+    #[test]
+    fn test_permission_checker_caching() {
+        let mut enforcer = SecurityEnforcer::new();
+        let mut checker = PermissionChecker::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+
+        let context_id = enforcer.register_driver(driver_id, policy).unwrap();
+
+        let _ = checker.check(&mut enforcer, context_id, Capability::AllocateMemory, 1000);
+        let _ = checker.check(&mut enforcer, context_id, Capability::AllocateMemory, 1000);
+
+        assert_eq!(checker.checks_performed, 2);
+        assert_eq!(checker.capability_cache.len(), 1);  // Cached result
+    }
+
+    #[test]
+    fn test_permission_checker_cache_clear() {
+        let mut enforcer = SecurityEnforcer::new();
+        let mut checker = PermissionChecker::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+
+        let context_id = enforcer.register_driver(driver_id, policy).unwrap();
+
+        let _ = checker.check(&mut enforcer, context_id, Capability::AllocateMemory, 1000);
+        assert_eq!(checker.capability_cache.len(), 1);
+
+        checker.clear_cache(context_id);
+        assert_eq!(checker.capability_cache.len(), 0);
+    }
+
+    #[test]
+    fn test_capability_manager_cleanup_expired() {
+        let mut manager = CapabilityManager::new();
+        let driver_id = ObjectId::new();
+
+        let mut grant1 = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        grant1.granted_at_ms = 1000;
+        grant1.expires_at_ms = 2000;
+
+        let mut grant2 = CapabilityGrant::new(driver_id, Capability::RegisterDevice, PermissionTier::Low);
+        grant2.granted_at_ms = 1000;
+        grant2.expires_at_ms = 5000;
+
+        manager.grant(grant1).ok();
+        manager.grant(grant2).ok();
+
+        manager.cleanup_expired(3000);
+        assert_eq!(manager.expired_grants, 1);
+    }
+
+    #[test]
+    fn test_reauth_requirement() {
+        let driver_id = ObjectId::new();
+        let grant = CapabilityGrant::new(driver_id, Capability::RegisterDevice, PermissionTier::High)
+            .with_reauth(ReauthMethod::Biometric);
+
+        assert!(grant.reauth_required);
+        assert_eq!(grant.reauth_method, ReauthMethod::Biometric);
+    }
+
+    #[test]
+    fn test_enforcer_stats() {
+        let mut enforcer = SecurityEnforcer::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+
+        let context_id = enforcer.register_driver(driver_id, policy).unwrap();
+
+        enforcer.enforce(context_id, Capability::AllocateMemory, 1000).ok();
+        enforcer.enforce(context_id, Capability::RegisterDevice, 1000).ok();
+
+        let stats = enforcer.get_stats();
+        assert_eq!(stats.total_checks, 2);
+        assert_eq!(stats.contexts, 1);
+    }
+
+    #[test]
+    fn test_permission_checker_stats() {
+        let mut enforcer = SecurityEnforcer::new();
+        let mut checker = PermissionChecker::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+
+        let context_id = enforcer.register_driver(driver_id, policy).unwrap();
+
+        let _ = checker.check(&mut enforcer, context_id, Capability::AllocateMemory, 1000);
+        let _ = checker.check(&mut enforcer, context_id, Capability::RegisterDevice, 1000);
+
+        let stats = checker.get_stats();
+        assert_eq!(stats.checks_performed, 2);
+        assert_eq!(stats.checks_passed, 2);
+        assert!(stats.success_rate > 99.0);
     }
 }
