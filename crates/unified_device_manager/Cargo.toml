@@ -1,0 +1,13 @@
+[package]
+name = "unified_device_manager"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sher_common = { path = "../common" }
+gpu_driver = { path = "../gpu_driver" }
+audio_driver = { path = "../audio_driver" }
+input_driver = { path = "../input_driver" }
