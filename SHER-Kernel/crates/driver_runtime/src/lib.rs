@@ -7,6 +7,13 @@ pub mod container;
 pub mod loader;
 pub mod translator;
 
-pub use container::DriverContainer;
-pub use loader::DriverLoader;
-pub use translator::TranslationEngine;
+#[cfg(test)]
+mod tests;
+
+// Re-export main types
+pub use container::{
+    DriverContainer, ContainerState, ContainerPool, ContainerTelemetry,
+    ResourceLimits, DriverCapability,
+};
+pub use loader::{DriverLoader, DriverManifest, LinuxDriver};
+pub use translator::{TranslationEngine, LinuxApiCall, SherPrimitive, TranslationMapping, ValidationLevel};
