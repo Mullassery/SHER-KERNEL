@@ -1,20 +1,30 @@
 //! SHER Kernel Unified Device Manager
 //!
 //! Responsible for:
-//! - Hardware discovery
-//! - Driver matching
-//! - Capability negotiation
-//! - Firmware management
-//! - Telemetry
-//! - Health monitoring
-//! - Power optimization
-//! - Policy enforcement
-//! - Security validation
+//! - Hardware discovery (PCI, USB, ACPI, DeviceTree)
+//! - Device registration and lifecycle management
+//! - Driver matching with capability negotiation
+//! - Hot-plug support for dynamic device management
+//! - Policy enforcement and telemetry
+//! - Health monitoring and error recovery
 
 pub mod registry;
 pub mod discovery;
 pub mod policy;
 
-pub use registry::DeviceRegistry;
-pub use discovery::DeviceDiscovery;
-pub use policy::DevicePolicy;
+#[cfg(test)]
+mod tests;
+
+// Re-export main types
+pub use registry::{
+    DeviceRegistry, RegisteredDevice, DeviceState, DeviceTelemetry, DeviceHierarchy,
+};
+pub use discovery::{
+    DeviceDiscovery, PciEnumerator, PciDevice, PciCapability,
+    UsbEnumerator, UsbDevice, UsbSpeed,
+    FirmwareDiscovery, FirmwareDevice, FirmwareType,
+};
+pub use policy::{
+    DevicePolicy, DriverPolicy, ErrorAction,
+    DriverDatabase, DriverEntry, DriverMatch, MatchType, DriverMatcher,
+};
