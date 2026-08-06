@@ -7,3 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+sher_common = { path = "../common" }
+gpu_driver = { path = "../gpu_driver" }
+input_driver = { path = "../input_driver" }
+unified_device_manager = { path = "../unified_device_manager" }
