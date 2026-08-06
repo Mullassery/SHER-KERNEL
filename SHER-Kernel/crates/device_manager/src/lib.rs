@@ -11,6 +11,7 @@
 pub mod registry;
 pub mod discovery;
 pub mod policy;
+pub mod hotplug;
 
 #[cfg(test)]
 mod tests;
@@ -27,4 +28,8 @@ pub use discovery::{
 pub use policy::{
     DevicePolicy, DriverPolicy, ErrorAction,
     DriverDatabase, DriverEntry, DriverMatch, MatchType, DriverMatcher,
+};
+pub use hotplug::{
+    HotPlugManager, HotPlugController, RecoveryManager, RecoveryPolicy,
+    DeviceEvent, DeviceEventType, EventCallback, EventSubscription,
 };

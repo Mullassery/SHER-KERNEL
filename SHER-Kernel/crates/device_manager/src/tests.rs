@@ -541,4 +541,305 @@ mod tests {
         assert!(device.telemetry.last_error.is_some());
         assert_eq!(device.telemetry.total_errors, 1);
     }
+
+    // ========================================================================
+    // HOT-PLUG MANAGER TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_hotplug_manager_new() {
+        let manager = HotPlugManager::new();
+        assert!(manager.enabled);
+        assert_eq!(manager.pending_event_count(), 0);
+        assert_eq!(manager.get_pending_device_count(), 0);
+    }
+
+    #[test]
+    fn test_hotplug_device_insertion() {
+        let mut manager = HotPlugManager::new();
+        let device = RegisteredDevice::new(
+            ObjectId::new(),
+            "usb_device".to_string(),
+            "usb".to_string(),
+            0,
+        );
+
+        let result = manager.handle_device_insertion(device);
+        assert!(result.is_ok());
+        assert_eq!(manager.pending_event_count(), 1);
+        assert_eq!(manager.get_pending_device_count(), 1);
+    }
+
+    #[test]
+    fn test_hotplug_device_removal() {
+        let mut manager = HotPlugManager::new();
+        let device_id = ObjectId::new();
+
+        let result = manager.handle_device_removal(device_id, "eth0".to_string());
+        assert!(result.is_ok());
+        assert_eq!(manager.pending_event_count(), 1);
+        assert_eq!(manager.get_removed_device_count(), 1);
+    }
+
+    #[test]
+    fn test_hotplug_event_queue() {
+        let mut manager = HotPlugManager::new();
+        let device_id = ObjectId::new();
+
+        manager.handle_device_removal(device_id, "device".to_string()).ok();
+        assert_eq!(manager.pending_event_count(), 1);
+
+        let event = manager.next_event();
+        assert!(event.is_some());
+        let evt = event.unwrap();
+        assert_eq!(evt.event_type, DeviceEventType::Removed);
+        assert_eq!(evt.device_id, device_id);
+    }
+
+    #[test]
+    fn test_hotplug_graceful_shutdown() {
+        let mut manager = HotPlugManager::new();
+        let mut registry = DeviceRegistry::new();
+        let device = RegisteredDevice::new(
+            ObjectId::new(),
+            "shutdown_device".to_string(),
+            "test".to_string(),
+            0,
+        );
+        let device_id = device.id;
+        registry.register(device);
+
+        let result = manager.graceful_shutdown(&mut registry, device_id);
+        assert!(result.is_ok());
+
+        let dev = registry.get_device(device_id).unwrap();
+        assert_eq!(dev.state, DeviceState::Removed);
+    }
+
+    #[test]
+    fn test_hotplug_reenumerate() {
+        let mut manager = HotPlugManager::new();
+        let mut registry = DeviceRegistry::new();
+
+        // Add some devices
+        let dev1 = RegisteredDevice::new(ObjectId::new(), "dev1".to_string(), "type1".to_string(), 0);
+        let dev2 = RegisteredDevice::new(ObjectId::new(), "dev2".to_string(), "type2".to_string(), 0);
+        registry.register(dev1);
+        registry.register(dev2);
+
+        let count = manager.reenumerate(&mut registry).expect("Reenumerate failed");
+        assert_eq!(count, 0);  // No operational devices yet (all Discovered)
+    }
+
+    #[test]
+    fn test_hotplug_subscribe_to_events() {
+        let mut manager = HotPlugManager::new();
+        let call_count = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+        let call_count_clone = call_count.clone();
+
+        let callback: EventCallback = std::sync::Arc::new(move |event| {
+            // Count Inserted events
+            if event.event_type == DeviceEventType::Inserted {
+                let mut count = call_count_clone.lock().unwrap();
+                *count += 1;
+            }
+        });
+
+        manager.subscribe(DeviceEventType::Inserted, callback);
+
+        let device = RegisteredDevice::new(ObjectId::new(), "dev".to_string(), "type".to_string(), 0);
+        manager.handle_device_insertion(device).ok();
+
+        // Note: handle_device_insertion emits event immediately, then process_all_events emits again
+        manager.process_all_events();
+
+        let final_count = *call_count.lock().unwrap();
+        // Event emitted during insertion + during process_all_events = 2 total
+        assert_eq!(final_count, 2);
+    }
+
+    #[test]
+    fn test_hotplug_disabled() {
+        let mut manager = HotPlugManager::new();
+        manager.enabled = false;
+
+        let device = RegisteredDevice::new(ObjectId::new(), "dev".to_string(), "type".to_string(), 0);
+        let result = manager.handle_device_insertion(device);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_recovery_manager_new() {
+        let manager = RecoveryManager::new(RecoveryPolicy::default());
+        assert_eq!(manager.policy.max_attempts, 3);
+        assert_eq!(manager.policy.initial_backoff_ms, 100);
+    }
+
+    #[test]
+    fn test_recovery_can_recover() {
+        let manager = RecoveryManager::new(RecoveryPolicy::default());
+        let device_id = ObjectId::new();
+        assert!(manager.can_recover(device_id));
+    }
+
+    #[test]
+    fn test_recovery_track_attempts() {
+        let mut manager = RecoveryManager::new(RecoveryPolicy::default());
+        let device_id = ObjectId::new();
+
+        manager.record_recovery_attempt(device_id);
+        manager.record_recovery_attempt(device_id);
+
+        // After 2 attempts: 100 * 2^2 = 400
+        assert_eq!(manager.get_backoff_ms(device_id), 400);
+    }
+
+    #[test]
+    fn test_recovery_max_attempts() {
+        let mut manager = RecoveryManager::new(RecoveryPolicy::default());
+        let device_id = ObjectId::new();
+
+        for _ in 0..3 {
+            manager.record_recovery_attempt(device_id);
+        }
+
+        assert!(!manager.can_recover(device_id));
+    }
+
+    #[test]
+    fn test_recovery_reset() {
+        let mut manager = RecoveryManager::new(RecoveryPolicy::default());
+        let device_id = ObjectId::new();
+
+        manager.record_recovery_attempt(device_id);
+        manager.reset_recovery(device_id);
+
+        assert!(manager.can_recover(device_id));
+    }
+
+    #[test]
+    fn test_hotplug_controller_new() {
+        let controller = HotPlugController::new();
+        assert!(controller.enable_hotplug().is_ok());
+    }
+
+    #[test]
+    fn test_hotplug_controller_enable_disable() {
+        let controller = HotPlugController::new();
+        assert!(controller.disable_hotplug().is_ok());
+        assert!(controller.enable_hotplug().is_ok());
+    }
+
+    #[test]
+    fn test_hotplug_controller_device_operations() {
+        let controller = HotPlugController::new();
+        let device = RegisteredDevice::new(ObjectId::new(), "test".to_string(), "type".to_string(), 0);
+        let device_id = device.id;
+
+        assert!(controller.insert_device(device).is_ok());
+        assert!(controller.remove_device(device_id, "test".to_string()).is_ok());
+    }
+
+    #[test]
+    fn test_device_event_creation() {
+        let device_id = ObjectId::new();
+        let event = DeviceEvent::new(DeviceEventType::Inserted, device_id, "test_device".to_string());
+
+        assert_eq!(event.event_type, DeviceEventType::Inserted);
+        assert_eq!(event.device_id, device_id);
+        assert_eq!(event.device_name, "test_device");
+    }
+
+    #[test]
+    fn test_device_event_with_details() {
+        let device_id = ObjectId::new();
+        let event = DeviceEvent::new(DeviceEventType::Error, device_id, "dev".to_string())
+            .with_details("Connection timeout".to_string());
+
+        assert!(event.details.is_some());
+        assert_eq!(event.details.unwrap(), "Connection timeout");
+    }
+
+    // ========================================================================
+    // INTEGRATION: HOTPLUG WITH REGISTRY
+    // ========================================================================
+
+    #[test]
+    fn test_hotplug_integration_full_cycle() {
+        let mut manager = HotPlugManager::new();
+        let mut registry = DeviceRegistry::new();
+
+        // Step 1: Create and insert device
+        let device = RegisteredDevice::new(
+            ObjectId::new(),
+            "integrated_device".to_string(),
+            "integrated".to_string(),
+            0,
+        );
+        let device_id = device.id;
+
+        registry.register(device);
+
+        // Register insertion event
+        manager.handle_device_removal(device_id, "integrated_device".to_string()).ok();
+
+        // Step 2: Verify device is in registry
+        assert!(registry.get_device(device_id).is_some());
+        assert_eq!(manager.get_removed_device_count(), 1);
+
+        // Step 3: Gracefully remove
+        manager.graceful_shutdown(&mut registry, device_id).ok();
+
+        // Step 4: Verify removal
+        let device = registry.get_device(device_id).unwrap();
+        assert_eq!(device.state, DeviceState::Removed);
+    }
+
+    #[test]
+    fn test_hotplug_integration_error_recovery() {
+        let mut recovery = RecoveryManager::new(RecoveryPolicy::default());
+
+        let device_id = ObjectId::new();
+
+        // Check if recovery is possible
+        assert!(recovery.can_recover(device_id));
+
+        // Record recovery attempts
+        for i in 0..3 {
+            assert!(recovery.can_recover(device_id));
+            recovery.record_recovery_attempt(device_id);
+            let backoff = recovery.get_backoff_ms(device_id);
+            // Verify exponential backoff: 100 * 2^(i+1)
+            let expected = 100 * 2_u32.pow((i + 1) as u32);
+            assert_eq!(backoff, expected, "Backoff at attempt {} should be {}", i + 1, expected);
+        }
+
+        // After 3 attempts, recovery should not be possible
+        assert!(!recovery.can_recover(device_id));
+
+        // Reset recovery
+        recovery.reset_recovery(device_id);
+        assert!(recovery.can_recover(device_id));
+    }
+
+    #[test]
+    fn test_hotplug_integration_stress_events() {
+        let mut manager = HotPlugManager::new();
+
+        // Create 10 insertion events
+        for i in 0..10 {
+            let device = RegisteredDevice::new(
+                ObjectId::new(),
+                format!("stress_dev_{}", i),
+                "stress".to_string(),
+                0,
+            );
+            manager.handle_device_insertion(device).ok();
+        }
+
+        // Process all events
+        let processed = manager.process_all_events();
+        assert_eq!(processed, 10);
+        assert_eq!(manager.pending_event_count(), 0);
+    }
 }
