@@ -4,6 +4,8 @@
 mod tests {
     use crate::anomaly_detection::*;
     use crate::predictive_allocation::*;
+    use crate::adaptive_scheduling::*;
+    use crate::continuous_learning::*;
     use sher_common::ObjectId;
 
     // ========================================================================
@@ -302,5 +304,304 @@ mod tests {
 
         let by_cpu = allocator.get_profiles_by_cpu_load();
         assert!(by_cpu[0].cpu_usage_pattern.avg_utilization_percent >= by_cpu[1].cpu_usage_pattern.avg_utilization_percent);
+    }
+
+    // ========================================================================
+    // ADAPTIVE SCHEDULING TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_adaptive_scheduler_new() {
+        let scheduler = AdaptiveScheduler::new();
+        assert_eq!(scheduler.total_decisions, 0);
+        assert_eq!(scheduler.decisions.len(), 0);
+    }
+
+    #[test]
+    fn test_scheduling_strategy_selection() {
+        let mut scheduler = AdaptiveScheduler::new();
+        let driver_id = ObjectId::new();
+
+        // High CPU, low anomalies: aggressive
+        let decision = scheduler.decide_scheduling(
+            driver_id,
+            SchedulingStrategy::Balanced,
+            85.0, // high CPU
+            50.0, // normal memory
+            0,    // no anomalies
+            50.0, // latency
+            60.0, // SLO
+        );
+        assert_eq!(decision.strategy, SchedulingStrategy::Aggressive);
+
+        // High anomalies: conservative
+        let decision = scheduler.decide_scheduling(
+            driver_id,
+            SchedulingStrategy::Balanced,
+            50.0,
+            50.0,
+            10,   // high anomalies
+            50.0,
+            60.0,
+        );
+        assert_eq!(decision.strategy, SchedulingStrategy::Conservative);
+    }
+
+    #[test]
+    fn test_slo_tracking() {
+        let mut scheduler = AdaptiveScheduler::new();
+        let driver_id = ObjectId::new();
+
+        // Record SLO achievement
+        scheduler.record_slo_result(driver_id, 45.0, 60.0, 1000);
+        scheduler.record_slo_result(driver_id, 55.0, 60.0, 1000);
+        scheduler.record_slo_result(driver_id, 65.0, 60.0, 1000); // SLO miss
+
+        let metrics = scheduler.get_metrics(driver_id).unwrap();
+        assert_eq!(metrics.decisions_made, 3);
+        assert_eq!(metrics.slo_violations, 1);
+        assert!(metrics.slo_achievement_rate > 0.6);
+    }
+
+    #[test]
+    fn test_workload_classification() {
+        let mut classifier = WorkloadClassifier::new();
+        let driver_id = ObjectId::new();
+
+        // Classify as interactive (low CPU, higher latency variance)
+        let workload = classifier.classify(driver_id, 10.0, 30.0, 500.0, 35.0);
+        assert_eq!(workload, WorkloadType::Interactive);
+
+        // Classify as ML (high CPU and memory)
+        let workload = classifier.classify(driver_id, 85.0, 75.0, 2000.0, 50.0);
+        assert_eq!(workload, WorkloadType::ML);
+
+        // Classify as IO (high IO intensity)
+        let workload = classifier.classify(driver_id, 40.0, 50.0, 8000.0, 50.0);
+        assert_eq!(workload, WorkloadType::IO);
+
+        // Classify as real-time (low latency variance)
+        let workload = classifier.classify(driver_id, 60.0, 50.0, 2000.0, 5.0);
+        assert_eq!(workload, WorkloadType::RealTime);
+    }
+
+    #[test]
+    fn test_scheduler_statistics() {
+        let mut scheduler = AdaptiveScheduler::new();
+
+        for _ in 0..5 {
+            let driver_id = ObjectId::new();
+            scheduler.decide_scheduling(driver_id, SchedulingStrategy::Balanced, 50.0, 50.0, 0, 50.0, 60.0);
+            scheduler.record_slo_result(driver_id, 55.0, 60.0, 1000);
+        }
+
+        let stats = scheduler.get_stats();
+        assert_eq!(stats.total_drivers, 5);
+        assert!(stats.avg_slo_achievement > 0.0);
+    }
+
+    // ========================================================================
+    // CONTINUOUS LEARNING TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_learning_engine_new() {
+        let engine = ContinuousLearningEngine::new();
+        assert_eq!(engine.total_observations, 0);
+        assert_eq!(engine.optimizations_applied, 0);
+    }
+
+    #[test]
+    fn test_behavior_model_observation() {
+        let mut model = DriverBehaviorModel::new(ObjectId::new());
+
+        for i in 0..5 {
+            let obs = RuntimeObservation {
+                driver_id: model.driver_id,
+                timestamp_ms: i * 1000,
+                cpu_usage: 50.0 + (i as f64 * 5.0),
+                memory_usage: 40.0,
+                io_throughput: 1000.0,
+                network_throughput: 100.0,
+                latency_ms: 50.0,
+                anomalies_detected: 0,
+                task_count: 10,
+            };
+            model.observe(obs);
+        }
+
+        assert_eq!(model.samples, 5);
+        assert!(model.avg_cpu_usage > 0.0);
+        assert!(model.peak_cpu_usage > model.avg_cpu_usage);
+    }
+
+    #[test]
+    fn test_correlation_calculation() {
+        let mut model = DriverBehaviorModel::new(ObjectId::new());
+
+        // Create correlated observations
+        for i in 0..15 {
+            let obs = RuntimeObservation {
+                driver_id: model.driver_id,
+                timestamp_ms: i * 100,
+                cpu_usage: 30.0 + (i as f64 * 4.0),
+                memory_usage: 20.0 + (i as f64 * 3.0),
+                io_throughput: 500.0,
+                network_throughput: 50.0,
+                latency_ms: 40.0,
+                anomalies_detected: 0,
+                task_count: 5,
+            };
+            model.observe(obs);
+        }
+
+        assert!(model.cpu_memory_correlation > 0.5); // Should be positively correlated
+    }
+
+    #[test]
+    fn test_trend_analysis() {
+        let mut model = DriverBehaviorModel::new(ObjectId::new());
+
+        // Increasing CPU trend
+        for i in 0..20 {
+            let obs = RuntimeObservation {
+                driver_id: model.driver_id,
+                timestamp_ms: i * 100,
+                cpu_usage: 20.0 + (i as f64 * 2.0),
+                memory_usage: 40.0,
+                io_throughput: 1000.0,
+                network_throughput: 100.0,
+                latency_ms: 50.0,
+                anomalies_detected: 0,
+                task_count: 10,
+            };
+            model.observe(obs);
+        }
+
+        // Trend should be positive (increasing)
+        assert!(model.cpu_trend > 0.0);
+    }
+
+    #[test]
+    fn test_anomaly_detection_from_model() {
+        let mut model = DriverBehaviorModel::new(ObjectId::new());
+
+        // Build baseline
+        for _ in 0..15 {
+            let obs = RuntimeObservation {
+                driver_id: model.driver_id,
+                timestamp_ms: 1000,
+                cpu_usage: 50.0,
+                memory_usage: 40.0,
+                io_throughput: 1000.0,
+                network_throughput: 100.0,
+                latency_ms: 50.0,
+                anomalies_detected: 0,
+                task_count: 10,
+            };
+            model.observe(obs);
+        }
+
+        // Normal observation
+        let normal = RuntimeObservation {
+            driver_id: model.driver_id,
+            timestamp_ms: 2000,
+            cpu_usage: 55.0,
+            memory_usage: 42.0,
+            io_throughput: 1000.0,
+            network_throughput: 100.0,
+            latency_ms: 52.0,
+            anomalies_detected: 0,
+            task_count: 10,
+        };
+        assert!(!model.is_anomalous(&normal));
+
+        // Anomalous observation
+        let anomalous = RuntimeObservation {
+            driver_id: model.driver_id,
+            timestamp_ms: 2000,
+            cpu_usage: 150.0,
+            memory_usage: 40.0,
+            io_throughput: 1000.0,
+            network_throughput: 100.0,
+            latency_ms: 50.0,
+            anomalies_detected: 0,
+            task_count: 10,
+        };
+        assert!(model.is_anomalous(&anomalous));
+    }
+
+    #[test]
+    fn test_continuous_learning_observations() {
+        let mut engine = ContinuousLearningEngine::new();
+        let driver_id = ObjectId::new();
+
+        for i in 0..10 {
+            let obs = RuntimeObservation {
+                driver_id,
+                timestamp_ms: i * 1000,
+                cpu_usage: 40.0 + (i as f64 * 3.0),
+                memory_usage: 30.0,
+                io_throughput: 500.0,
+                network_throughput: 50.0,
+                latency_ms: 45.0,
+                anomalies_detected: 0,
+                task_count: 8,
+            };
+            engine.observe(obs);
+        }
+
+        assert_eq!(engine.total_observations, 10);
+        let model = engine.get_model(driver_id).unwrap();
+        assert_eq!(model.samples, 10);
+    }
+
+    #[test]
+    fn test_optimization_tracking() {
+        let mut engine = ContinuousLearningEngine::new();
+        let driver_id = ObjectId::new();
+
+        let result = OptimizationResult {
+            driver_id,
+            change_type: "cpu_affinity".to_string(),
+            before_metric: 100.0,
+            after_metric: 85.0,
+            improvement_percent: 15.0,
+            applied_at_ms: 1000,
+        };
+
+        engine.record_optimization(result);
+
+        let stats = engine.get_optimization_stats();
+        assert_eq!(stats.total_optimizations, 1);
+        assert_eq!(stats.successful_optimizations, 1);
+        assert_eq!(stats.success_rate, 1.0);
+    }
+
+    #[test]
+    fn test_learning_stats() {
+        let mut engine = ContinuousLearningEngine::new();
+
+        for i in 0..3 {
+            let driver_id = ObjectId::new();
+            for j in 0..10 {
+                let obs = RuntimeObservation {
+                    driver_id,
+                    timestamp_ms: j * 1000,
+                    cpu_usage: 40.0 + (i as f64 * 10.0),
+                    memory_usage: 30.0,
+                    io_throughput: 500.0,
+                    network_throughput: 50.0,
+                    latency_ms: 45.0,
+                    anomalies_detected: 0,
+                    task_count: 8,
+                };
+                engine.observe(obs);
+            }
+        }
+
+        let stats = engine.get_stats();
+        assert_eq!(stats.total_drivers_observed, 3);
+        assert_eq!(stats.total_observations, 30);
     }
 }
