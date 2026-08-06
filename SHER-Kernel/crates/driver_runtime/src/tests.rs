@@ -479,4 +479,229 @@ mod tests {
         assert_eq!(container.telemetry.start_count, 2);
         assert_eq!(container.state, ContainerState::Running);
     }
+
+    // ========================================================================
+    // SANDBOX TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_sandbox_policy_new() {
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
+
+        assert_eq!(policy.driver_id, driver_id);
+        assert_eq!(policy.security_level, SecurityLevel::Restricted);
+        assert!(policy.enabled);
+    }
+
+    #[test]
+    fn test_sandbox_allowed_syscall() {
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
+
+        assert!(policy.check_syscall("read").is_ok());
+        assert!(policy.check_syscall("write").is_ok());
+    }
+
+    #[test]
+    fn test_sandbox_blocked_syscall() {
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
+
+        assert!(policy.check_syscall("ptrace").is_err());
+        assert!(policy.check_syscall("kexec_load").is_err());
+    }
+
+    #[test]
+    fn test_sandbox_file_access_allowed() {
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
+
+        assert!(policy.check_file_access("/sys/bus/pci/devices", false).is_ok());
+        assert!(policy.check_file_access("/dev/mem", false).is_ok());
+    }
+
+    #[test]
+    fn test_sandbox_file_access_blocked() {
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
+
+        assert!(policy.check_file_access("/etc/shadow", false).is_err());
+        assert!(policy.check_file_access("/root/secrets", false).is_err());
+    }
+
+    #[test]
+    fn test_sandbox_read_only_paths() {
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
+
+        // Read should be OK (matches allowed path)
+        assert!(policy.check_file_access("/sys/bus/pci/devices", false).is_ok());
+        // Write should be blocked (matches read-only path)
+        assert!(policy.check_file_access("/sys/bus/pci/devices", true).is_err());
+    }
+
+    #[test]
+    fn test_sandbox_manager_register() {
+        let mut manager = SandboxManager::new();
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Strict);
+
+        manager.register_policy(policy);
+        assert!(manager.get_policy(driver_id).is_some());
+    }
+
+    #[test]
+    fn test_sandbox_manager_syscall_logging() {
+        let mut manager = SandboxManager::new();
+        let driver_id = ObjectId::new();
+        let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
+
+        manager.register_policy(policy);
+        let _ = manager.check_syscall(driver_id, "read");
+
+        let log = manager.get_syscall_log(driver_id);
+        assert!(log.is_some());
+        assert!(log.unwrap().len() > 0);
+    }
+
+    #[test]
+    fn test_capability_set_grant_deny() {
+        let mut caps = CapabilitySet::new();
+
+        caps.grant("CAP_SYS_ADMIN");
+        assert!(caps.has("CAP_SYS_ADMIN"));
+
+        caps.deny("CAP_SYS_ADMIN");
+        assert!(!caps.has("CAP_SYS_ADMIN"));
+    }
+
+    #[test]
+    fn test_capability_check() {
+        let mut caps = CapabilitySet::new();
+        caps.grant("CAP_NET_BIND_SERVICE");
+
+        assert!(caps.check("CAP_NET_BIND_SERVICE").is_ok());
+        assert!(caps.check("CAP_ADMIN").is_err());
+    }
+
+    // ========================================================================
+    // NETWORK ISOLATION TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_network_policy_new() {
+        let driver_id = ObjectId::new();
+        let policy = NetworkPolicy::new(driver_id);
+
+        assert_eq!(policy.driver_id, driver_id);
+        assert!(policy.allow_network);
+        assert_eq!(policy.bandwidth_limit_kbps, 10000);
+    }
+
+    #[test]
+    fn test_network_policy_allow() {
+        let driver_id = ObjectId::new();
+        let policy = NetworkPolicy::new(driver_id);
+
+        assert!(policy.check_connection(IpProtocol::Tcp, "8.8.8.8:53").is_ok());
+    }
+
+    #[test]
+    fn test_network_policy_deny() {
+        let driver_id = ObjectId::new();
+        let mut policy = NetworkPolicy::new(driver_id);
+        policy.allow_network = false;
+
+        assert!(policy.check_connection(IpProtocol::Tcp, "8.8.8.8:53").is_err());
+    }
+
+    #[test]
+    fn test_bandwidth_throttler_limit() {
+        let mut throttler = BandwidthThrottler::new();
+        let driver_id = ObjectId::new();
+
+        throttler.set_limit(driver_id, 100);  // 100 kbps
+        assert!(throttler.record_traffic(driver_id, 50 * 1024, true).is_ok());  // 50 KB
+        assert!(throttler.record_traffic(driver_id, 60 * 1024, true).is_err());  // 60 KB (exceeds limit)
+    }
+
+    #[test]
+    fn test_bandwidth_metrics() {
+        let mut throttler = BandwidthThrottler::new();
+        let driver_id = ObjectId::new();
+
+        throttler.set_limit(driver_id, 10000);  // 10 Mbps
+        throttler.record_traffic(driver_id, 1024, true).ok();  // 1 KB send
+        throttler.record_traffic(driver_id, 2048, false).ok(); // 2 KB receive
+
+        let metrics = throttler.get_metrics(driver_id);
+        assert!(metrics.is_some());
+        assert_eq!(metrics.unwrap().bytes_sent, 1024);
+        assert_eq!(metrics.unwrap().bytes_received, 2048);
+    }
+
+    #[test]
+    fn test_network_isolation_manager_connections() {
+        let mut manager = NetworkIsolationManager::new();
+        let driver_id = ObjectId::new();
+        let policy = NetworkPolicy::new(driver_id);
+
+        manager.register_policy(policy);
+        assert!(manager.add_connection(driver_id, "conn_1".to_string()).is_ok());
+        assert_eq!(manager.get_connection_count(driver_id), 1);
+
+        manager.remove_connection(driver_id, "conn_1");
+        assert_eq!(manager.get_connection_count(driver_id), 0);
+    }
+
+    #[test]
+    fn test_network_isolation_max_connections() {
+        let mut manager = NetworkIsolationManager::new();
+        let driver_id = ObjectId::new();
+        let mut policy = NetworkPolicy::new(driver_id);
+        policy.max_connections = 2;
+
+        manager.register_policy(policy);
+        assert!(manager.add_connection(driver_id, "conn_1".to_string()).is_ok());
+        assert!(manager.add_connection(driver_id, "conn_2".to_string()).is_ok());
+        assert!(manager.add_connection(driver_id, "conn_3".to_string()).is_err());
+    }
+
+    #[test]
+    fn test_device_isolation_manager() {
+        let mut manager = DeviceIsolationManager::new();
+        let driver_id = ObjectId::new();
+        let device_id = ObjectId::new();
+
+        let mut isolation = DeviceIsolation {
+            driver_id,
+            device_ids: vec![device_id],
+            io_ports: vec![(0x60, 0x64)],
+        };
+
+        manager.register_isolation(isolation);
+        assert!(manager.can_access_device(driver_id, device_id));
+        assert!(manager.can_access_io_port(driver_id, 0x61));
+        assert!(!manager.can_access_io_port(driver_id, 0x80));
+    }
+
+    #[test]
+    fn test_device_isolation_check() {
+        let mut manager = DeviceIsolationManager::new();
+        let driver_id = ObjectId::new();
+        let device_id = ObjectId::new();
+
+        let isolation = DeviceIsolation {
+            driver_id,
+            device_ids: vec![device_id],
+            io_ports: vec![],
+        };
+
+        manager.register_isolation(isolation);
+        assert!(manager.check_device_access(driver_id, device_id).is_ok());
+
+        let other_device = ObjectId::new();
+        assert!(manager.check_device_access(driver_id, other_device).is_err());
+    }
 }

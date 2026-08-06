@@ -6,6 +6,8 @@
 pub mod container;
 pub mod loader;
 pub mod translator;
+pub mod sandbox;
+pub mod network;
 
 #[cfg(test)]
 mod tests;
@@ -17,3 +19,11 @@ pub use container::{
 };
 pub use loader::{DriverLoader, DriverManifest, LinuxDriver};
 pub use translator::{TranslationEngine, LinuxApiCall, SherPrimitive, TranslationMapping, ValidationLevel};
+pub use sandbox::{
+    SandboxManager, SandboxPolicy, SyscallPolicy, SyscallEntry,
+    SecurityLevel, NamespacePolicy, FileDescriptorPolicy, CapabilitySet,
+};
+pub use network::{
+    NetworkIsolationManager, NetworkPolicy, NetworkRule, IpProtocol,
+    BandwidthThrottler, BandwidthMetrics, DeviceIsolationManager, DeviceIsolation,
+};
