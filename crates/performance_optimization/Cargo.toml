@@ -1,0 +1,11 @@
+[package]
+name = "performance_optimization"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sher_common = { path = "../common" }
+performance_benchmarks = { path = "../performance_benchmarks" }
