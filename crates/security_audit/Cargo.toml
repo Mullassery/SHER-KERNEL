@@ -1,0 +1,11 @@
+[package]
+name = "security_audit"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sher_common = { path = "../common" }
+unified_device_manager = { path = "../unified_device_manager" }
