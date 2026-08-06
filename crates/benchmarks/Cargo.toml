@@ -1,0 +1,34 @@
+[package]
+name = "benchmarks"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+sher_memory = { path = "../memory" }
+sher_device_manager = { path = "../device_manager" }
+sher_driver_runtime = { path = "../driver_runtime" }
+sher_lki = { path = "../lki" }
+sher_security = { path = "../security" }
+sher_ai = { path = "../ai" }
+tokio = { version = "1", features = ["full"] }
+criterion-plot = "0.5"
+
+[[bench]]
+name = "memory_allocation"
+harness = false
+
+[[bench]]
+name = "device_enumeration"
+harness = false
+
+[[bench]]
+name = "lki_translation"
+harness = false
+
+[[bench]]
+name = "security_checks"
+harness = false
