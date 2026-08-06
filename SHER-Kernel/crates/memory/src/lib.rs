@@ -14,12 +14,14 @@ pub mod paging;
 pub mod dma;
 pub mod tier0_slab;
 pub mod tier1_slab;
+pub mod master_allocator;
 
 pub use allocator::MemoryAllocator;
 pub use paging::PageTable;
 pub use dma::DmaManager;
 pub use tier0_slab::{Tier0Allocator, CpuSlabCache};
 pub use tier1_slab::{Tier1Allocator, SocketSlabCache, SlabPage};
+pub use master_allocator::{MasterAllocator, AllocatorStats};
 
 // Re-export size classes with namespace prefix to avoid conflicts
 pub use tier0_slab::SizeClass as SizeClassTier0;
