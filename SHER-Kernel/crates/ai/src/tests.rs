@@ -6,6 +6,8 @@ mod tests {
     use crate::predictive_allocation::*;
     use crate::adaptive_scheduling::*;
     use crate::continuous_learning::*;
+    use crate::inference_engine::*;
+    use crate::reinforcement_learning::*;
     use sher_common::ObjectId;
 
     // ========================================================================
@@ -603,5 +605,287 @@ mod tests {
         let stats = engine.get_stats();
         assert_eq!(stats.total_drivers_observed, 3);
         assert_eq!(stats.total_observations, 30);
+    }
+
+    // ========================================================================
+    // INFERENCE ENGINE TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_inference_engine_new() {
+        let engine = InferenceEngine::new();
+        assert_eq!(engine.decisions_made, 0);
+        assert_eq!(engine.high_confidence_decisions, 0);
+    }
+
+    #[test]
+    fn test_feature_vector_creation() {
+        let driver_id = ObjectId::new();
+        let mut context = std::collections::HashMap::new();
+        context.insert("cpu_usage".to_string(), 75.0);
+        context.insert("memory_usage".to_string(), 60.0);
+        context.insert("io_ops_per_sec".to_string(), 5000.0);
+        context.insert("latency_ms".to_string(), 80.0);
+
+        let features = FeatureVector::from_context(driver_id, &context);
+        assert!(features.cpu_usage_normalized > 0.7);
+        assert!(features.memory_usage_normalized > 0.5);
+        assert!(features.latency_ms > 0.0);
+    }
+
+    #[test]
+    fn test_resource_allocation_inference() {
+        let mut engine = InferenceEngine::new();
+        let driver_id = ObjectId::new();
+        let request_id = ObjectId::new();
+
+        let mut context = std::collections::HashMap::new();
+        context.insert("cpu_usage".to_string(), 50.0);
+        context.insert("memory_usage".to_string(), 85.0);
+        context.insert("anomalies".to_string(), 2.0);
+
+        let features = FeatureVector::from_context(driver_id, &context);
+
+        let request = InferenceRequest {
+            request_id,
+            driver_id,
+            inference_type: InferenceType::ResourceAllocation,
+            context: context.clone(),
+            timestamp_ms: 1000,
+        };
+
+        let decision = engine.infer(&request, &features, 0.8);
+        assert_eq!(decision.action, "allocate_resources");
+        assert!(decision.confidence > 0.5);
+        assert!(decision.parameters.contains_key("memory_scale"));
+    }
+
+    #[test]
+    fn test_scheduling_strategy_inference() {
+        let mut engine = InferenceEngine::new();
+        let driver_id = ObjectId::new();
+
+        let mut context = std::collections::HashMap::new();
+        context.insert("cpu_usage".to_string(), 85.0);
+        context.insert("anomalies".to_string(), 1.0);
+        context.insert("latency_ms".to_string(), 40.0);
+
+        let features = FeatureVector::from_context(driver_id, &context);
+
+        let request = InferenceRequest {
+            request_id: ObjectId::new(),
+            driver_id,
+            inference_type: InferenceType::SchedulingStrategy,
+            context,
+            timestamp_ms: 1000,
+        };
+
+        let decision = engine.infer(&request, &features, 0.8);
+        assert!(decision.action.contains("strategy"));
+        assert!(decision.confidence > 0.5);
+    }
+
+    #[test]
+    fn test_anomaly_response_inference() {
+        let mut engine = InferenceEngine::new();
+        let driver_id = ObjectId::new();
+
+        let mut context = std::collections::HashMap::new();
+        context.insert("anomalies".to_string(), 8.0);
+        context.insert("slo_violation_rate".to_string(), 0.5);
+
+        let features = FeatureVector::from_context(driver_id, &context);
+
+        let request = InferenceRequest {
+            request_id: ObjectId::new(),
+            driver_id,
+            inference_type: InferenceType::AnomalyResponse,
+            context,
+            timestamp_ms: 1000,
+        };
+
+        let decision = engine.infer(&request, &features, 0.7);
+        assert!(decision.action.contains("isolate") || decision.action.contains("throttle"));
+    }
+
+    #[test]
+    fn test_inference_statistics() {
+        let mut engine = InferenceEngine::new();
+        let driver_id = ObjectId::new();
+
+        for _ in 0..5 {
+            let request = InferenceRequest {
+                request_id: ObjectId::new(),
+                driver_id,
+                inference_type: InferenceType::ResourceAllocation,
+                context: std::collections::HashMap::new(),
+                timestamp_ms: 1000,
+            };
+
+            let features = FeatureVector::new(driver_id);
+            engine.infer(&request, &features, 0.8);
+        }
+
+        let stats = engine.get_stats();
+        assert_eq!(stats.total_decisions, 5);
+        assert!(stats.avg_latency_ms >= 0.0);
+    }
+
+    // ========================================================================
+    // REINFORCEMENT LEARNING TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_action_policy_new() {
+        let policy = ActionPolicy::new("test_action".to_string());
+        assert_eq!(policy.attempts, 0);
+        assert_eq!(policy.avg_reward, 0.0);
+    }
+
+    #[test]
+    fn test_action_policy_update() {
+        let mut policy = ActionPolicy::new("test_action".to_string());
+
+        policy.update(0.8);
+        policy.update(0.9);
+        policy.update(-0.1);
+
+        assert_eq!(policy.attempts, 3);
+        assert_eq!(policy.success_count, 2);
+        assert_eq!(policy.failure_count, 1);
+        assert!(policy.avg_reward > 0.0);
+    }
+
+    #[test]
+    fn test_driver_learner_new() {
+        let driver_id = ObjectId::new();
+        let learner = DriverLearner::new(driver_id);
+        assert_eq!(learner.episodes, 0);
+        assert_eq!(learner.cumulative_reward, 0.0);
+    }
+
+    #[test]
+    fn test_driver_learner_reward() {
+        let driver_id = ObjectId::new();
+        let mut learner = DriverLearner::new(driver_id);
+
+        learner.record_reward("action_a".to_string(), 0.9);
+        learner.record_reward("action_a".to_string(), 0.85);
+        learner.record_reward("action_b".to_string(), 0.5);
+
+        assert_eq!(learner.episodes, 3);
+        let best = learner.get_best_action().unwrap();
+        assert_eq!(best, "action_a");
+    }
+
+    #[test]
+    fn test_driver_learner_convergence() {
+        let driver_id = ObjectId::new();
+        let mut learner = DriverLearner::new(driver_id);
+
+        // Add consistent rewards
+        for _ in 0..10 {
+            learner.record_reward("action".to_string(), 0.8);
+        }
+
+        let convergence = learner.convergence_metric();
+        assert!(convergence < 0.5); // Should be low variance (converged)
+    }
+
+    #[test]
+    fn test_reinforcement_learner_new() {
+        let rl = ReinforcementLearner::new();
+        assert_eq!(rl.total_episodes, 0);
+        assert_eq!(rl.total_reward, 0.0);
+    }
+
+    #[test]
+    fn test_reinforcement_learner_reward() {
+        let mut rl = ReinforcementLearner::new();
+        let driver_id = ObjectId::new();
+
+        let event = RewardEvent {
+            driver_id,
+            signal: RewardSignal::SloAchieved,
+            magnitude: 0.9,
+            timestamp_ms: 1000,
+            action_taken: "allocate_resources".to_string(),
+        };
+
+        rl.reward(event);
+
+        assert_eq!(rl.total_episodes, 1);
+        assert!(rl.total_reward > 0.0);
+    }
+
+    #[test]
+    fn test_reinforcement_learner_policy_selection() {
+        let mut rl = ReinforcementLearner::new();
+        let driver_id = ObjectId::new();
+
+        // Reward successful action
+        for _ in 0..3 {
+            let event = RewardEvent {
+                driver_id,
+                signal: RewardSignal::OptimizationSuccess,
+                magnitude: 0.8,
+                timestamp_ms: 1000,
+                action_taken: "aggressive_strategy".to_string(),
+            };
+            rl.reward(event);
+        }
+
+        // Reward less successful action
+        for _ in 0..2 {
+            let event = RewardEvent {
+                driver_id,
+                signal: RewardSignal::OptimizationFailed,
+                magnitude: 0.3,
+                timestamp_ms: 1000,
+                action_taken: "conservative_strategy".to_string(),
+            };
+            rl.reward(event);
+        }
+
+        let best = rl.get_best_global_policy().unwrap();
+        assert_eq!(best, "aggressive_strategy");
+    }
+
+    #[test]
+    fn test_reinforcement_learner_stats() {
+        let mut rl = ReinforcementLearner::new();
+        let driver_id = ObjectId::new();
+
+        for i in 0..10 {
+            let signal = if i < 7 {
+                RewardSignal::SloAchieved
+            } else {
+                RewardSignal::SloViolated
+            };
+
+            let event = RewardEvent {
+                driver_id,
+                signal,
+                magnitude: 0.7,
+                timestamp_ms: 1000,
+                action_taken: "action".to_string(),
+            };
+            rl.reward(event);
+        }
+
+        let stats = rl.get_stats();
+        assert_eq!(stats.total_episodes, 10);
+        assert!(stats.avg_reward_per_episode > 0.0);
+    }
+
+    #[test]
+    fn test_reward_signal_conversion() {
+        let rl = ReinforcementLearner::new();
+
+        let slo_achieved = rl.signal_to_reward(RewardSignal::SloAchieved, 0.8);
+        let slo_violated = rl.signal_to_reward(RewardSignal::SloViolated, 0.8);
+
+        assert!(slo_achieved > 0.0);
+        assert!(slo_violated < 0.0);
     }
 }

@@ -1,7 +1,7 @@
 // SHER AI Services: Continuous Learning System
 // Real-time learning from runtime observations and optimization feedback
 
-use sher_common::{ObjectId, Result, Error};
+use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 

@@ -1,4 +1,4 @@
-use crate::config::{KernelConfig, SecurityLevel};
+use crate::config::KernelConfig;
 use sher_ai::{InferenceEngine, AiMonitor, ResourceOptimizer};
 use sher_common::Result;
 use sher_device_manager::registry::DeviceRegistry;
@@ -8,7 +8,7 @@ use sher_memory::allocator::MemoryAllocator;
 use sher_scheduler::queue::TaskQueue;
 use sher_security::audit::AuditLog;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{info, warn};
+use tracing::info;
 
 pub struct SherKernel {
     config: KernelConfig,
@@ -53,7 +53,6 @@ impl SherKernel {
 
         if self.config.enable_ai_services {
             info!("Initializing AI services");
-            self.inference_engine.load_model("default")?;
         }
 
         if self.config.enable_linux_compatibility {
