@@ -21,8 +21,9 @@ SHER Kernel has completed Phase 0 through Phase 6 Week 1 implementation:
 - **Phase 4**: Linux Kernel Interface with 50+ API translations (Complete, 72 tests)
 - **Phase 5**: Capability-based security with zero-trust enforcement (Complete, 24 tests)
 - **Phase 6 Week 1**: AI services - anomaly detection and predictive allocation (Complete, 19 tests)
+- **Phase 6 Week 2**: Adaptive scheduling and continuous learning (Complete, 13 tests)
 
-**Total Achievement**: 12,131 lines of production code, 306+ comprehensive tests, 100% passing rate.
+**Total Achievement**: 13,163 lines of production code, 319+ comprehensive tests, 100% passing rate.
 
 ## Technical Highlights
 
@@ -188,7 +189,7 @@ Foundation for all kernel entities with:
 - Denial tracking and anomaly detection
 
 ### AI Services (`crates/ai/`)
-- 1,054 LOC, 19 tests
+- 2,085 LOC, 32 tests (19 Week 1 + 13 Week 2)
 - Anomaly Detection Engine with three specialized detectors:
   - MemoryLeakDetector: Tracks allocation growth patterns with 50MB/s threshold
   - InterruptStormDetector: Identifies excessive interrupts (>10k/sec) with time-windowed analysis
@@ -198,6 +199,20 @@ Foundation for all kernel entities with:
   - 1-second ahead predictions with confidence scoring
   - Priority assignment and CPU affinity optimization
   - NUMA-aware resource recommendations
+- Adaptive Scheduling Engine:
+  - Real-time strategy selection (Aggressive/Balanced/Conservative/RealTime)
+  - SLO tracking with achievement rate monitoring
+  - Strategy switching based on anomaly patterns
+  - Priority and CPU quota management
+- Continuous Learning System:
+  - DriverBehaviorModel with peak/average tracking
+  - Correlation analysis (CPU-memory, CPU-latency, IO-latency)
+  - Trend prediction with linear regression
+  - Anomaly detection from learned baselines
+- Workload Classification:
+  - Dynamic detection of 5 workload types (Interactive/Batch/RealTime/ML/IO)
+  - Intensity measurement and normalization
+  - Pattern-based optimization hints
 
 ## API Coverage
 
@@ -349,14 +364,14 @@ SHER Kernel achieves comprehensive test coverage across all subsystems:
 - **Driver Runtime**: 81 tests validating containers, isolation, sandboxing, hot-plug
 - **LKI Translation**: 72 tests for API translation, validation, audit logging
 - **Security**: 24 tests for capability grants, enforcement, permission checking
-- **AI Services**: 19 tests for anomaly detection engines and predictive allocation
+- **AI Services**: 32 tests for anomaly detection, predictive allocation, scheduling, and learning
 
 Run the full test suite:
 ```bash
 cargo test --lib
 ```
 
-Expected output: 306+ tests passing at 100% rate.
+Expected output: 319+ tests passing at 100% rate.
 
 ## Project Structure
 
@@ -433,9 +448,10 @@ Security is not added on top; it is architectural:
 - Phase 4: Linux Kernel Interface (50+ API translations with validation)
 - Phase 5: Security & capabilities (zero-trust, time-bounded grants)
 - Phase 6 Week 1: AI services foundation (anomaly detection engines, predictive allocation)
+- Phase 6 Week 2: Adaptive scheduling and continuous learning (strategy selection, behavior modeling)
 
 ### In Development
-- Phase 6 Weeks 2-4: AI services completion (adaptive scheduling, continuous learning)
+- Phase 6 Weeks 3-4: AI services completion (inference engine, reinforcement learning integration)
 - Phase 7: Production hardening (performance optimization, crash recovery, boot optimization)
 - Phase 8: Digital twins (replay capability, simulation, what-if analysis)
 
