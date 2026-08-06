@@ -15,6 +15,7 @@ pub mod dma;
 pub mod tier0_slab;
 pub mod tier1_slab;
 pub mod master_allocator;
+pub mod stress_tests;
 
 pub use allocator::MemoryAllocator;
 pub use paging::PageTable;

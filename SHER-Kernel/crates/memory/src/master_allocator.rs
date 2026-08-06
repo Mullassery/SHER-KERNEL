@@ -120,6 +120,11 @@ impl MasterAllocator {
         }
     }
 
+    /// Refill Tier 0 caches (for testing/initialization)
+    pub fn refill_tier0_caches(&mut self, count: usize) -> Result<()> {
+        self.tier0.refill_all_caches(count)
+    }
+
     /// Perform periodic maintenance (compact, shrink)
     pub fn maintain(&mut self) -> Result<()> {
         // Compact Tier 1 slabs (move full slabs)

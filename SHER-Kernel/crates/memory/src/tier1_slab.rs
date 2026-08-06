@@ -175,8 +175,19 @@ impl SlabPage {
 
         let obj_size = self.size_class.actual_size();
         unsafe {
-            let offset = ptr.offset_from(self.vaddr) as usize;
-            let idx = (offset - self.color_offset) / obj_size;
+            let offset = ptr.offset_from(self.vaddr) as isize;
+
+            // Check if pointer is within this slab
+            if offset < 0 || offset as usize >= (self.total_objects * obj_size) {
+                return false;
+            }
+
+            let offset_usize = offset as usize;
+            if offset_usize < self.color_offset {
+                return false;
+            }
+
+            let idx = (offset_usize - self.color_offset) / obj_size;
 
             if idx < self.total_objects {
                 self.free_stack.push(idx);
@@ -211,6 +222,10 @@ impl Drop for SlabPage {
         }
     }
 }
+
+// SAFETY: SlabPage contains only raw pointers and is safe to send/sync
+unsafe impl Send for SlabPage {}
+unsafe impl Sync for SlabPage {}
 
 // ============================================================================
 // PER-SOCKET SLAB CACHE
@@ -334,6 +349,10 @@ impl SocketSlabCache {
         self.partial_slabs.len()
     }
 }
+
+// SAFETY: SocketSlabCache is safe to send/sync since it contains Send/Sync components
+unsafe impl Send for SocketSlabCache {}
+unsafe impl Sync for SocketSlabCache {}
 
 // ============================================================================
 // TIER 1 ALLOCATOR (PER-SOCKET ARRAYS)
