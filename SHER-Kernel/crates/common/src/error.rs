@@ -5,6 +5,12 @@ pub enum Error {
     #[error("Memory error: {0}")]
     Memory(String),
 
+    #[error("Allocation failed: {0}")]
+    AllocationFailed(String),
+
+    #[error("Out of memory")]
+    OutOfMemory,
+
     #[error("Security error: {0}")]
     Security(String),
 
