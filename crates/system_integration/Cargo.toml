@@ -1,0 +1,16 @@
+[package]
+name = "system_integration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sher_common = { path = "../common" }
+wayland_server = { path = "../wayland_server" }
+gpu_driver = { path = "../gpu_driver" }
+audio_driver = { path = "../audio_driver" }
+input_driver = { path = "../input_driver" }
+unified_device_manager = { path = "../unified_device_manager" }
+hal = { path = "../hal" }
