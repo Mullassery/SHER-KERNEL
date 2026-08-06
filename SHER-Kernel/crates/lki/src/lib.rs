@@ -10,6 +10,7 @@ pub mod device_compat;
 pub mod validation;
 pub mod memory_translation;
 pub mod interrupt_translation;
+pub mod device_translation;
 pub mod audit;
 
 #[cfg(test)]
@@ -21,4 +22,8 @@ pub use device_compat::LinuxDeviceApi;
 pub use validation::{ValidationResult, ValidationError, Validator};
 pub use memory_translation::{LinuxMemoryAllocator, AllocationMode, MemoryAllocation};
 pub use interrupt_translation::{InterruptHandler, InterruptManager};
+pub use device_translation::{
+    DeviceManager, PciDriver, PciDevice, PciDeviceId, DeviceBus, BusType,
+    BlockDevice, BlockDeviceManager, NetworkDevice, NetworkDeviceManager,
+};
 pub use audit::{AuditLog, AuditEntry, AuditLevel};

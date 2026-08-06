@@ -4,6 +4,10 @@
 mod tests {
     use crate::memory_translation::LinuxMemoryAllocator;
     use crate::interrupt_translation::{InterruptManager, InterruptHandler, IrqTrigger};
+    use crate::device_translation::{
+        DeviceManager, PciDriver, PciDevice, PciDeviceId, DeviceBus, BusType,
+        BlockDevice, BlockDeviceManager, BlockDeviceType, NetworkDevice, NetworkDeviceManager, NetDeviceType,
+    };
     use crate::audit::{AuditLog, AuditEntry, AuditLevel, AuditFilter};
     use crate::validation::Validator;
     use sher_common::ObjectId;
@@ -474,5 +478,343 @@ mod tests {
 
         let stats = log.stats();
         assert!(stats.error_rate > 60.0 && stats.error_rate < 70.0);
+    }
+
+    // ========================================================================
+    // DEVICE TRANSLATION TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_pci_device_id_new() {
+        let pci_id = PciDeviceId::new(0x8086, 0x1234);
+        assert_eq!(pci_id.vendor, 0x8086);
+        assert_eq!(pci_id.device, 0x1234);
+        assert_eq!(pci_id.subvendor, 0xFFFF);
+        assert_eq!(pci_id.subdevice, 0xFFFF);
+    }
+
+    #[test]
+    fn test_pci_device_id_matches_exact() {
+        let id1 = PciDeviceId::new(0x8086, 0x1234);
+        let id2 = PciDeviceId::new(0x8086, 0x1234);
+
+        assert!(id1.matches(&id2));
+        assert!(id2.matches(&id1));
+    }
+
+    #[test]
+    fn test_pci_device_id_matches_wildcard() {
+        let wildcard = PciDeviceId {
+            vendor: 0xFFFF,
+            device: 0x1234,
+            subvendor: 0xFFFF,
+            subdevice: 0xFFFF,
+        };
+        let specific = PciDeviceId::new(0x8086, 0x1234);
+
+        assert!(wildcard.matches(&specific));
+    }
+
+    #[test]
+    fn test_pci_device_bdf() {
+        let pci_id = PciDeviceId::new(0x8086, 0x1234);
+        let device = PciDevice::new(pci_id, 5, 10, 2);
+
+        let bdf = device.bdf();
+        let expected = ((5 as u32) << 16) | ((10 as u32) << 11) | 2;
+        assert_eq!(bdf, expected);
+    }
+
+    #[test]
+    fn test_pci_device_enable_disable() {
+        let pci_id = PciDeviceId::new(0x8086, 0x1234);
+        let mut device = PciDevice::new(pci_id, 5, 10, 2);
+
+        assert!(!device.enabled);
+        device.enable();
+        assert!(device.enabled);
+        device.disable();
+        assert!(!device.enabled);
+    }
+
+    #[test]
+    fn test_pci_device_add_bar() {
+        let pci_id = PciDeviceId::new(0x8086, 0x1234);
+        let mut device = PciDevice::new(pci_id, 5, 10, 2);
+
+        device.add_bar(0xF0000000, 0x10000);
+        device.add_bar(0xF0010000, 0x1000);
+
+        assert_eq!(device.bar_regions.len(), 2);
+        assert_eq!(device.bar_regions[0], (0xF0000000, 0x10000));
+    }
+
+    #[test]
+    fn test_pci_driver_new() {
+        let driver = PciDriver::new("intel_ether");
+        assert_eq!(driver.driver_name, "intel_ether");
+        assert_eq!(driver.supported_devices.len(), 0);
+        assert_eq!(driver.probed_devices, 0);
+    }
+
+    #[test]
+    fn test_pci_driver_add_device() {
+        let mut driver = PciDriver::new("intel_ether");
+        let id1 = PciDeviceId::new(0x8086, 0x1234);
+        let id2 = PciDeviceId::new(0x8086, 0x5678);
+
+        driver.add_device(id1);
+        driver.add_device(id2);
+
+        assert_eq!(driver.supported_devices.len(), 2);
+    }
+
+    #[test]
+    fn test_pci_driver_supports_device() {
+        let mut driver = PciDriver::new("intel_ether");
+        let supported = PciDeviceId::new(0x8086, 0x1234);
+        let unsupported = PciDeviceId::new(0x1000, 0x9999);
+
+        driver.add_device(supported);
+
+        assert!(driver.supports_device(&supported));
+        assert!(!driver.supports_device(&unsupported));
+    }
+
+    #[test]
+    fn test_pci_driver_probe_tracking() {
+        let mut driver = PciDriver::new("intel_ether");
+
+        driver.record_probe(true);
+        driver.record_probe(true);
+        driver.record_probe(false);
+
+        assert_eq!(driver.probed_devices, 3);
+        assert_eq!(driver.successful_probes, 2);
+        assert_eq!(driver.failed_probes, 1);
+    }
+
+    #[test]
+    fn test_device_bus_new() {
+        let bus = DeviceBus::new(BusType::Pci, "pci0");
+        assert_eq!(bus.bus_type, BusType::Pci);
+        assert_eq!(bus.bus_name, "pci0");
+        assert_eq!(bus.device_count(), 0);
+        assert_eq!(bus.driver_count(), 0);
+    }
+
+    #[test]
+    fn test_device_bus_add_device() {
+        let mut bus = DeviceBus::new(BusType::Pci, "pci0");
+        let dev_id = ObjectId::new();
+
+        bus.add_device(dev_id);
+        assert_eq!(bus.device_count(), 1);
+
+        bus.add_device(dev_id);
+        assert_eq!(bus.device_count(), 1);  // No duplicates
+    }
+
+    #[test]
+    fn test_device_bus_remove_device() {
+        let mut bus = DeviceBus::new(BusType::Pci, "pci0");
+        let dev_id = ObjectId::new();
+
+        bus.add_device(dev_id);
+        bus.remove_device(dev_id);
+        assert_eq!(bus.device_count(), 0);
+    }
+
+    #[test]
+    fn test_device_manager_new() {
+        let manager = DeviceManager::new();
+        assert_eq!(manager.total_devices, 0);
+        assert_eq!(manager.total_drivers, 0);
+    }
+
+    #[test]
+    fn test_device_manager_register_pci_driver() {
+        let mut manager = DeviceManager::new();
+        let device_ids = vec![PciDeviceId::new(0x8086, 0x1234)];
+
+        let result = manager.register_pci_driver("intel_ether", device_ids);
+        assert!(result.is_ok());
+        assert_eq!(manager.total_drivers, 1);
+    }
+
+    #[test]
+    fn test_device_manager_register_pci_device() {
+        let mut manager = DeviceManager::new();
+        let pci_id = PciDeviceId::new(0x8086, 0x1234);
+
+        let result = manager.register_pci_device(pci_id, 0, 15, 0);
+        assert!(result.is_ok());
+        assert_eq!(manager.total_devices, 1);
+    }
+
+    #[test]
+    fn test_device_manager_driver_device_matching() {
+        let mut manager = DeviceManager::new();
+        let device_ids = vec![PciDeviceId::new(0x8086, 0x1234)];
+
+        manager.register_pci_driver("intel_ether", device_ids).ok();
+        let device_id = manager.register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0).ok();
+
+        if let Some(dev_id) = device_id {
+            let driver = manager.get_driver_for_device(dev_id);
+            assert!(driver.is_some());
+        }
+    }
+
+    #[test]
+    fn test_device_manager_register_bus() {
+        let mut manager = DeviceManager::new();
+
+        let result = manager.register_bus(BusType::Pci, "pci0");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_device_manager_bus_add_device() {
+        let mut manager = DeviceManager::new();
+        let bus_id = manager.register_bus(BusType::Pci, "pci0").unwrap();
+        let dev_id = ObjectId::new();
+
+        let result = manager.bus_add_device(bus_id, dev_id);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_device_manager_find_by_vendor() {
+        let mut manager = DeviceManager::new();
+
+        manager.register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0).ok();
+        manager.register_pci_device(PciDeviceId::new(0x8086, 0x5678), 0, 16, 0).ok();
+        manager.register_pci_device(PciDeviceId::new(0x1000, 0x9999), 0, 17, 0).ok();
+
+        let devices = manager.find_devices_by_vendor(0x8086);
+        assert_eq!(devices.len(), 2);
+    }
+
+    #[test]
+    fn test_device_manager_enable_disable() {
+        let mut manager = DeviceManager::new();
+        let pci_id = PciDeviceId::new(0x8086, 0x1234);
+        manager.register_pci_device(pci_id, 0, 15, 0).ok();
+
+        let bdf = ((0 as u32) << 16) | ((15 as u32) << 11) | 0;
+        manager.enable_device(bdf).ok();
+
+        if let Some(device) = manager.get_device_by_bdf(bdf) {
+            assert!(device.enabled);
+        }
+    }
+
+    #[test]
+    fn test_device_manager_stats() {
+        let mut manager = DeviceManager::new();
+
+        manager.register_pci_driver("driver1", vec![PciDeviceId::new(0x8086, 0x1234)]).ok();
+        manager.register_pci_driver("driver2", vec![PciDeviceId::new(0x1000, 0x5678)]).ok();
+        manager.register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0).ok();
+
+        let stats = manager.get_stats();
+        assert_eq!(stats.total_drivers, 2);
+        assert_eq!(stats.registered_devices, 1);
+    }
+
+    #[test]
+    fn test_block_device_new() {
+        let device = BlockDevice::new(BlockDeviceType::HardDrive, 8, 0, 1024 * 1024 * 1024);
+        assert_eq!(device.major_number, 8);
+        assert_eq!(device.minor_number, 0);
+        assert_eq!(device.capacity_bytes, 1024 * 1024 * 1024);
+        assert!(!device.registered);
+    }
+
+    #[test]
+    fn test_block_device_register() {
+        let mut device = BlockDevice::new(BlockDeviceType::HardDrive, 8, 0, 1024 * 1024 * 1024);
+        assert!(!device.registered);
+
+        device.register();
+        assert!(device.registered);
+
+        device.unregister();
+        assert!(!device.registered);
+    }
+
+    #[test]
+    fn test_block_device_manager_register() {
+        let mut manager = BlockDeviceManager::new();
+        let device = BlockDevice::new(BlockDeviceType::HardDrive, 8, 0, 1024 * 1024 * 1024);
+
+        let result = manager.register_block_device(device);
+        assert!(result.is_ok());
+        assert_eq!(manager.total_registered, 1);
+    }
+
+    #[test]
+    fn test_block_device_manager_duplicate() {
+        let mut manager = BlockDeviceManager::new();
+        let device1 = BlockDevice::new(BlockDeviceType::HardDrive, 8, 0, 1024 * 1024 * 1024);
+        let device2 = BlockDevice::new(BlockDeviceType::HardDrive, 8, 0, 1024 * 1024 * 1024);
+
+        manager.register_block_device(device1).ok();
+        let result = manager.register_block_device(device2);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_network_device_new() {
+        let device = NetworkDevice::new(NetDeviceType::Ethernet, "eth0");
+        assert_eq!(device.name, "eth0");
+        assert_eq!(device.device_type, NetDeviceType::Ethernet);
+        assert_eq!(device.mtu, 1500);
+        assert!(!device.registered);
+    }
+
+    #[test]
+    fn test_network_device_set_mac() {
+        let mut device = NetworkDevice::new(NetDeviceType::Ethernet, "eth0");
+        let mac = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE];
+
+        device.set_mac(mac);
+        assert_eq!(device.mac_address, mac);
+    }
+
+    #[test]
+    fn test_network_device_manager_register() {
+        let mut manager = NetworkDeviceManager::new();
+        let device = NetworkDevice::new(NetDeviceType::Ethernet, "eth0");
+
+        let result = manager.register_net_device(device);
+        assert!(result.is_ok());
+        assert_eq!(manager.total_registered, 1);
+    }
+
+    #[test]
+    fn test_network_device_manager_duplicate() {
+        let mut manager = NetworkDeviceManager::new();
+        let device1 = NetworkDevice::new(NetDeviceType::Ethernet, "eth0");
+        let device2 = NetworkDevice::new(NetDeviceType::Ethernet, "eth0");
+
+        manager.register_net_device(device1).ok();
+        let result = manager.register_net_device(device2);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_network_device_manager_list() {
+        let mut manager = NetworkDeviceManager::new();
+
+        manager.register_net_device(NetworkDevice::new(NetDeviceType::Ethernet, "eth0")).ok();
+        manager.register_net_device(NetworkDevice::new(NetDeviceType::Ethernet, "eth1")).ok();
+        manager.register_net_device(NetworkDevice::new(NetDeviceType::Loopback, "lo")).ok();
+
+        let devices = manager.list_devices();
+        assert_eq!(devices.len(), 3);
     }
 }
