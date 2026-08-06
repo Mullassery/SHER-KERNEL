@@ -76,7 +76,7 @@ That's it. You now have a working SHER Kernel with all subsystems passing tests.
 
 ## Current Status
 
-SHER Kernel has completed Phase 0 through Phase 6 implementation:
+SHER Kernel has completed Phase 0 through Phase 7 (production hardening):
 
 - **Phase 0**: Foundation and architecture (Complete)
 - **Phase 1**: Memory management with lock-free allocation (Complete, 50+ tests)
@@ -87,17 +87,20 @@ SHER Kernel has completed Phase 0 through Phase 6 implementation:
 - **Phase 6 Week 1**: AI services - anomaly detection and predictive allocation (Complete, 19 tests)
 - **Phase 6 Week 2**: Adaptive scheduling and continuous learning (Complete, 13 tests)
 - **Phase 6 Week 3**: Inference engine and reinforcement learning (Complete, 16 tests)
+- **Phase 7**: Production hardening - crash recovery, watchdog monitoring (Complete, 11 tests)
 
-**Total Achievement**: 14,095 lines of production code, 335+ comprehensive tests, 100% passing rate.
+**Total Achievement**: 14,500+ lines of production code, 346+ comprehensive tests, 100% passing rate.
 
 ## Key Features
 
 **Zero-Trust Security** — Capability-based permissions with automatic expiration, no silent renewal  
 **Isolated Drivers** — Every driver runs in sandbox; crash doesn't crash the system  
+**Crash Recovery** — Automatic exponential backoff restart with quarantine for misbehaving drivers  
+**Watchdog Monitoring** — Real-time health checks with graceful degradation  
 **Linux Compatible** — 50+ Linux kernel APIs translated, not inherited  
 **AI-Native** — Anomaly detection, predictive allocation, adaptive scheduling built in  
 **High Performance** — Lock-free allocation (<1μs), event-driven architecture  
-**Comprehensive Testing** — 335+ tests, 100% pass rate, all subsystems covered
+**Comprehensive Testing** — 346+ tests, 100% pass rate, all subsystems covered
 
 ## Linux Kernel API Compatibility
 
@@ -131,11 +134,12 @@ For complete API reference and implementation details, see the project documenta
 git clone https://github.com/Mullassery/SHER-KERNEL.git
 cd SHER-KERNEL
 
-# Run all tests (335+ tests)
-cargo test --lib                    # Run all tests
-cargo test --lib sher_memory        # Test memory subsystem
+# Run all tests (346+ tests)
+cargo test --lib                     # Run all tests
+cargo test --lib sher_memory         # Test memory subsystem
 cargo test --lib sher_driver_runtime # Test driver isolation
-cargo test --lib sher_ai            # Test AI services
+cargo test --lib sher_ai             # Test AI services
+cargo test --lib sher_recovery       # Test crash recovery
 
 # Build the kernel
 cargo build              # Debug build
@@ -145,7 +149,7 @@ cargo build --release    # Optimized release binary
 cargo check              # Fast compile check without building
 ```
 
-**Expected output**: 335+ tests passing in ~3 seconds, zero warnings.
+**Expected output**: 346+ tests passing in ~3 seconds, zero warnings.
 
 ## Where to Learn More
 
@@ -162,8 +166,9 @@ cargo check              # Fast compile check without building
 - **LKI Translation**: 72+ tests
 - **Security**: 24 tests
 - **AI Services**: 48 tests
+- **Crash Recovery**: 11 tests
 
-**Total**: 335+ tests, 100% pass rate, zero warnings
+**Total**: 346+ tests, 100% pass rate, zero warnings
 
 ## Project Organization
 
