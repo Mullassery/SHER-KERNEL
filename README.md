@@ -107,7 +107,7 @@ SHER translates 50+ Linux kernel APIs:
 - **Devices**: pci_driver_register, pci_device_register, bus_register, bus_add_device, bus_add_driver
 - **Block/Network**: register_blk_device, register_netdev, etc.
 
-Full API reference available in [CLAUDE.md](CLAUDE.md#linux-kernel-interface-lki-design).
+For complete API reference and implementation details, see the project documentation.
 
 ## Security Architecture
 
@@ -116,8 +116,6 @@ Full API reference available in [CLAUDE.md](CLAUDE.md#linux-kernel-interface-lki
 **Driver Sandboxing**: Each driver runs in isolated container with syscall whitelisting, namespace isolation, memory/network limits, and crash isolation.
 
 **Zero-Trust Model**: Every request validated, no component has unrestricted access, failure defaults to deny, complete audit trail.
-
-See [CLAUDE.md](CLAUDE.md#security-model) for detailed security architecture and threat model.
 
 ## Prerequisites & Installation
 
@@ -151,10 +149,10 @@ cargo check              # Fast compile check without building
 
 ## Where to Learn More
 
-- **[CLAUDE.md](CLAUDE.md)** — Complete architecture, design philosophy, and implementation roadmap
 - **Code Structure** — Each crate is self-contained; start with `crates/objectmodel/` (foundation)
 - **Test Cases** — 335+ tests serve as executable documentation and usage examples
 - **[PERFORMANCE_METRICS.md](PERFORMANCE_METRICS.md)** — Benchmark results vs Linux kernel
+- **[BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md)** — Detailed performance analysis and methodology
 
 ## Test Coverage
 
@@ -224,7 +222,7 @@ Development follows principles:
 For contributions, please ensure:
 - All tests pass: `cargo test --lib`
 - Code compiles without warnings: `cargo check`
-- Architecture constraints are maintained (see CLAUDE.md)
+- Maintain modular architecture with clear subsystem boundaries
 
 ## License
 

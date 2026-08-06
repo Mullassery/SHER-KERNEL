@@ -3,8 +3,7 @@
 //! Comprehensive benchmarks measuring SHER kernel subsystem performance
 //! with comparison against Linux kernel baselines.
 
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub struct BenchmarkMetrics {
     pub operation: String,
@@ -17,7 +16,7 @@ pub struct BenchmarkMetrics {
 
 impl BenchmarkMetrics {
     pub fn new(operation: &str, iterations: usize, durations: Vec<Duration>) -> Self {
-        let total_duration = durations.iter().sum();
+        let total_duration: Duration = durations.iter().sum();
         let avg_ns = total_duration.as_nanos() as u64 / iterations as u64;
         let min_ns = durations.iter().min().unwrap().as_nanos() as u64;
         let max_ns = durations.iter().max().unwrap().as_nanos() as u64;
