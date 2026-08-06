@@ -43,7 +43,7 @@ members = [
     "crates/updater",
 
     # Main kernel entry
-    "crates/kernel", "crates/benchmarks", "crates/digital_twins", "crates/profiling", "crates/hardening", "crates/hal", "crates/gpu_driver", "crates/audio_driver", "crates/input_driver", "crates/wayland_server", "crates/unified_device_manager", "crates/system_integration", "crates/performance_benchmarks", "crates/security_audit", "crates/performance_optimization",
+    "crates/kernel", "crates/benchmarks", "crates/digital_twins", "crates/profiling", "crates/hardening", "crates/hal", "crates/gpu_driver", "crates/audio_driver", "crates/input_driver", "crates/wayland_server", "crates/unified_device_manager", "crates/system_integration", "crates/performance_benchmarks", "crates/security_audit", "crates/performance_optimization", "crates/release_engineering",
 ]
 resolver = "2"
 
