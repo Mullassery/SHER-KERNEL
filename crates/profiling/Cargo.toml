@@ -1,0 +1,10 @@
+[package]
+name = "profiling"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sher_common = { path = "../common" }

@@ -43,7 +43,7 @@ members = [
     "crates/updater",
 
     # Main kernel entry
-    "crates/kernel", "crates/benchmarks", "crates/digital_twins",
+    "crates/kernel", "crates/benchmarks", "crates/digital_twins", "crates/profiling",
 ]
 resolver = "2"
 
