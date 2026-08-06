@@ -674,7 +674,7 @@ mod tests {
         let driver_id = ObjectId::new();
         let device_id = ObjectId::new();
 
-        let mut isolation = DeviceIsolation {
+        let isolation = DeviceIsolation {
             driver_id,
             device_ids: vec![device_id],
             io_ports: vec![(0x60, 0x64)],
@@ -703,5 +703,329 @@ mod tests {
 
         let other_device = ObjectId::new();
         assert!(manager.check_device_access(driver_id, other_device).is_err());
+    }
+
+    #[test]
+    fn test_device_isolation_multiple_ports() {
+        let mut manager = DeviceIsolationManager::new();
+        let driver_id = ObjectId::new();
+        let device_id = ObjectId::new();
+
+        let isolation = DeviceIsolation {
+            driver_id,
+            device_ids: vec![device_id],
+            io_ports: vec![(0x60, 0x64), (0x70, 0x77)],
+        };
+
+        manager.register_isolation(isolation);
+        assert!(manager.can_access_io_port(driver_id, 0x61));
+        assert!(manager.can_access_io_port(driver_id, 0x75));
+        assert!(!manager.can_access_io_port(driver_id, 0x80));
+    }
+
+    // ========================================================================
+    // HOT-PLUG INTEGRATION TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_hotplug_integration_new() {
+        let integration = HotPlugIntegration::new();
+        assert_eq!(integration.device_driver_map.len(), 0);
+        assert_eq!(integration.driver_device_map.len(), 0);
+        assert_eq!(integration.event_queue.len(), 0);
+        assert_eq!(integration.event_count, 0);
+        assert_eq!(integration.error_count, 0);
+    }
+
+    #[test]
+    fn test_hotplug_register_device_driver() {
+        let mut integration = HotPlugIntegration::new();
+        let device_id = ObjectId::new();
+        let driver_id = ObjectId::new();
+
+        integration.register_device_driver(device_id, driver_id);
+
+        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id));
+        assert_eq!(integration.get_devices_for_driver(driver_id), Some(&vec![device_id]));
+    }
+
+    #[test]
+    fn test_hotplug_unregister_device_driver() {
+        let mut integration = HotPlugIntegration::new();
+        let device_id = ObjectId::new();
+        let driver_id = ObjectId::new();
+
+        integration.register_device_driver(device_id, driver_id);
+        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id));
+
+        integration.unregister_device_driver(device_id);
+        assert_eq!(integration.get_driver_for_device(device_id), None);
+    }
+
+    #[test]
+    fn test_hotplug_queue_event() {
+        let mut integration = HotPlugIntegration::new();
+        let device_id = ObjectId::new();
+
+        let event = HotPlugEvent {
+            event_type: HotPlugEventType::DeviceInserted,
+            device_id,
+            driver_name: Some("test_driver".to_string()),
+            timestamp: 0,
+            details: None,
+        };
+
+        integration.queue_event(event);
+
+        assert_eq!(integration.pending_events(), 1);
+        assert_eq!(integration.event_count, 1);
+    }
+
+    #[test]
+    fn test_hotplug_next_event() {
+        let mut integration = HotPlugIntegration::new();
+        let device_id = ObjectId::new();
+
+        let event = HotPlugEvent {
+            event_type: HotPlugEventType::DeviceInserted,
+            device_id,
+            driver_name: Some("test_driver".to_string()),
+            timestamp: 0,
+            details: None,
+        };
+
+        integration.queue_event(event.clone());
+        let retrieved = integration.next_event();
+
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().event_type, HotPlugEventType::DeviceInserted);
+        assert_eq!(integration.pending_events(), 0);
+    }
+
+    #[test]
+    fn test_hotplug_multiple_devices() {
+        let mut integration = HotPlugIntegration::new();
+        let driver_id = ObjectId::new();
+        let device_id1 = ObjectId::new();
+        let device_id2 = ObjectId::new();
+        let device_id3 = ObjectId::new();
+
+        integration.register_device_driver(device_id1, driver_id);
+        integration.register_device_driver(device_id2, driver_id);
+        integration.register_device_driver(device_id3, driver_id);
+
+        let devices = integration.get_devices_for_driver(driver_id);
+        assert!(devices.is_some());
+        assert_eq!(devices.unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_hotplug_record_error() {
+        let mut integration = HotPlugIntegration::new();
+        let device_id = ObjectId::new();
+
+        integration.record_error(device_id, "test_driver".to_string(), "Driver crashed".to_string());
+
+        assert_eq!(integration.error_count, 1);
+        assert_eq!(integration.pending_events(), 1);
+
+        let event = integration.next_event();
+        assert!(event.is_some());
+        assert_eq!(event.unwrap().event_type, HotPlugEventType::DriverError);
+    }
+
+    #[test]
+    fn test_hotplug_event_queue_fifo() {
+        let mut integration = HotPlugIntegration::new();
+        let device_id1 = ObjectId::new();
+        let device_id2 = ObjectId::new();
+
+        let event1 = HotPlugEvent {
+            event_type: HotPlugEventType::DeviceInserted,
+            device_id: device_id1,
+            driver_name: Some("driver1".to_string()),
+            timestamp: 0,
+            details: None,
+        };
+
+        let event2 = HotPlugEvent {
+            event_type: HotPlugEventType::DeviceRemoved,
+            device_id: device_id2,
+            driver_name: Some("driver2".to_string()),
+            timestamp: 0,
+            details: None,
+        };
+
+        integration.queue_event(event1);
+        integration.queue_event(event2);
+
+        let first = integration.next_event().unwrap();
+        assert_eq!(first.event_type, HotPlugEventType::DeviceInserted);
+
+        let second = integration.next_event().unwrap();
+        assert_eq!(second.event_type, HotPlugEventType::DeviceRemoved);
+    }
+
+    #[test]
+    fn test_driver_lifecycle_manager_new() {
+        let manager = DriverLifecycleManager::new();
+        assert_eq!(manager.driver_count(), 0);
+        assert_eq!(manager.operational_driver_count(), 0);
+        assert_eq!(manager.error_count(), 0);
+        assert_eq!(manager.event_count(), 0);
+    }
+
+    #[test]
+    fn test_driver_lifecycle_manager_default() {
+        let manager = DriverLifecycleManager::default();
+        assert_eq!(manager.driver_count(), 0);
+    }
+
+    #[test]
+    fn test_driver_lifecycle_get_driver() {
+        let manager = DriverLifecycleManager::new();
+        let driver_id = ObjectId::new();
+
+        let driver = manager.get_driver(driver_id);
+        assert!(driver.is_none());
+    }
+
+    #[test]
+    fn test_driver_lifecycle_check_driver_health() {
+        let manager = DriverLifecycleManager::new();
+        let driver_id = ObjectId::new();
+
+        let result = manager.check_driver_health(driver_id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_driver_lifecycle_get_active_drivers() {
+        let manager = DriverLifecycleManager::new();
+        let active = manager.get_active_drivers();
+        assert_eq!(active.len(), 0);
+    }
+
+    #[test]
+    fn test_hotplug_event_types() {
+        assert_ne!(HotPlugEventType::DeviceInserted, HotPlugEventType::DeviceRemoved);
+        assert_ne!(HotPlugEventType::DriverLoaded, HotPlugEventType::DriverUnloaded);
+        assert_ne!(HotPlugEventType::DriverError, HotPlugEventType::DriverRecovered);
+    }
+
+    #[test]
+    fn test_hotplug_event_clone() {
+        let device_id = ObjectId::new();
+        let event1 = HotPlugEvent {
+            event_type: HotPlugEventType::DeviceInserted,
+            device_id,
+            driver_name: Some("test_driver".to_string()),
+            timestamp: 0,
+            details: Some("Test details".to_string()),
+        };
+
+        let event2 = event1.clone();
+        assert_eq!(event1.event_type, event2.event_type);
+        assert_eq!(event1.device_id, event2.device_id);
+    }
+
+    #[test]
+    fn test_hotplug_integration_bidirectional_mapping() {
+        let mut integration = HotPlugIntegration::new();
+        let driver_id = ObjectId::new();
+        let device_id1 = ObjectId::new();
+        let device_id2 = ObjectId::new();
+
+        integration.register_device_driver(device_id1, driver_id);
+        integration.register_device_driver(device_id2, driver_id);
+
+        // Device to driver mapping
+        assert_eq!(integration.get_driver_for_device(device_id1), Some(driver_id));
+        assert_eq!(integration.get_driver_for_device(device_id2), Some(driver_id));
+
+        // Driver to devices mapping
+        let devices = integration.get_devices_for_driver(driver_id);
+        assert!(devices.is_some());
+        assert_eq!(devices.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_hotplug_event_processing_order() {
+        let mut integration = HotPlugIntegration::new();
+        let mut events = Vec::new();
+
+        for i in 0..5 {
+            let event = HotPlugEvent {
+                event_type: HotPlugEventType::DeviceInserted,
+                device_id: ObjectId::new(),
+                driver_name: Some(format!("driver_{}", i)),
+                timestamp: 0,
+                details: None,
+            };
+            events.push(event.clone());
+            integration.queue_event(event);
+        }
+
+        for expected_event in events.iter() {
+            let retrieved = integration.next_event().unwrap();
+            assert_eq!(retrieved.driver_name, expected_event.driver_name);
+        }
+    }
+
+    #[test]
+    fn test_driver_lifecycle_manager_metrics() {
+        let mut manager = DriverLifecycleManager::new();
+        assert_eq!(manager.error_count(), 0);
+        assert_eq!(manager.event_count(), 0);
+
+        let device_id = ObjectId::new();
+        manager.hotplug_integration.record_error(device_id, "test".to_string(), "error".to_string());
+
+        assert_eq!(manager.error_count(), 1);
+        assert_eq!(manager.event_count(), 1);
+    }
+
+    #[test]
+    fn test_hotplug_multiple_drivers() {
+        let mut integration = HotPlugIntegration::new();
+        let driver_id1 = ObjectId::new();
+        let driver_id2 = ObjectId::new();
+        let device_id = ObjectId::new();
+
+        integration.register_device_driver(device_id, driver_id1);
+        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id1));
+
+        // Unregister and re-register with different driver
+        integration.unregister_device_driver(device_id);
+        integration.register_device_driver(device_id, driver_id2);
+        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id2));
+    }
+
+    #[test]
+    fn test_hotplug_empty_event_queue() {
+        let mut integration = HotPlugIntegration::new();
+        assert_eq!(integration.next_event(), None);
+        assert_eq!(integration.pending_events(), 0);
+    }
+
+    #[test]
+    fn test_hotplug_event_with_details() {
+        let mut integration = HotPlugIntegration::new();
+        let device_id = ObjectId::new();
+        let details = "Device connected via USB 3.0 at 5Gbps";
+
+        let event = HotPlugEvent {
+            event_type: HotPlugEventType::DeviceInserted,
+            device_id,
+            driver_name: Some("usb3_driver".to_string()),
+            timestamp: 123456,
+            details: Some(details.to_string()),
+        };
+
+        integration.queue_event(event);
+        let retrieved = integration.next_event().unwrap();
+
+        assert_eq!(retrieved.details, Some(details.to_string()));
+        assert_eq!(retrieved.timestamp, 123456);
     }
 }

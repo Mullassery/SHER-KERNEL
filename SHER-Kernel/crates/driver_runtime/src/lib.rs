@@ -8,6 +8,7 @@ pub mod loader;
 pub mod translator;
 pub mod sandbox;
 pub mod network;
+pub mod hotplug_integration;
 
 #[cfg(test)]
 mod tests;
@@ -26,4 +27,7 @@ pub use sandbox::{
 pub use network::{
     NetworkIsolationManager, NetworkPolicy, NetworkRule, IpProtocol,
     BandwidthThrottler, BandwidthMetrics, DeviceIsolationManager, DeviceIsolation,
+};
+pub use hotplug_integration::{
+    HotPlugIntegration, HotPlugEvent, HotPlugEventType, DriverLifecycleManager,
 };

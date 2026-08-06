@@ -50,7 +50,7 @@ impl NetworkPolicy {
         self.rules.push(rule);
     }
 
-    pub fn check_connection(&self, protocol: IpProtocol, dst: &str) -> Result<bool> {
+    pub fn check_connection(&self, protocol: IpProtocol, _dst: &str) -> Result<bool> {
         if !self.allow_network {
             return Err(Error::AllocationFailed("Network access denied".to_string()));
         }
