@@ -64,6 +64,22 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 
+[package]
+name = "sher-kernel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SHER Kernel v1.0.0 - Production-ready OS kernel for the AI era"
+
+[[bin]]
+name = "sher-kernel"
+path = "src/bin/sher-kernel.rs"
+
+[dependencies]
+sher_common = { path = "crates/common" }
+
 [profile.release]
 opt-level = 3
 lto = true
