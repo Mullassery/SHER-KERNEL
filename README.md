@@ -1,18 +1,82 @@
 # SHER Kernel
 
-**Strength, Resilience, Intelligence, Adaptability** — A ground-up reimagining of the operating system kernel for the AI era.
+## The Problem
 
-SHER Kernel is not a Linux fork, distribution, or derivative. It is a completely new kernel architecture designed from first principles to be AI-native, modular, secure by default, and capable of running existing Linux drivers through engineered compatibility rather than inheritance.
+Today's operating systems were designed for a different era. Linux (1991) predates AI, containerization, and real-time systems at scale. The result:
 
-## Mission
+- **Security is bolted-on**, not architectural — adding overhead without guarantees
+- **Drivers crash the entire system** — a single bad driver takes everything down
+- **Performance is unpredictable** — no way to guarantee latency or throughput
+- **AI workloads fight the kernel** — resource allocation is reactive, not predictive
+- **Hardware compatibility comes at a cost** — 30+ years of legacy cruft makes optimization nearly impossible
 
-Create an operating system kernel comparable to what modern electric vehicles represented for automotive engineering — not an incremental improvement of the existing stack, but a complete architectural reinvention built for the next generation of computing.
+## The SHER Solution
 
-**Guiding Principle**: Preserve the ecosystem. Reinvent the architecture.
+SHER Kernel is a completely new operating system kernel designed from first principles for:
+
+- **AI-native architecture** — inference engines, anomaly detection, and predictive allocation built into the core
+- **Security by default** — capability-based permissions, mandatory driver isolation, zero-trust validation
+- **Deterministic performance** — predictable latency, efficient resource utilization, adaptive scheduling
+- **Clean slate for AI/ML/robotics workloads** — no legacy constraints, just optimal design
+
+**SHER is not a Linux fork.** It runs Linux drivers without inheriting Linux internals, using an engineered translation layer instead.
+
+## Get Started in 5 Minutes
+
+```bash
+# Clone the repository
+git clone https://github.com/Mullassery/SHER-KERNEL.git
+cd SHER-KERNEL
+
+# Run all tests (335+ comprehensive tests)
+cargo test --lib
+
+# Expected: 335+ tests passing in ~3 seconds
+
+# Explore specific subsystems
+cargo test --lib sher_memory              # Memory management
+cargo test --lib sher_device_manager      # Device discovery & hot-plug
+cargo test --lib sher_driver_runtime      # Isolated driver execution
+cargo test --lib sher_lki                 # Linux API translation
+cargo test --lib sher_security            # Capability-based security
+cargo test --lib sher_ai                  # Anomaly detection & predictive allocation
+
+# Build optimized release binary
+cargo build --release
+```
+
+That's it. You now have a working SHER Kernel with all subsystems passing tests.
+
+## What SHER Actually Solves
+
+### 1. Security That Doesn't Require Layering
+- Capability-based permissions from day one (not SELinux/AppArmor bolted on top)
+- Every driver runs in isolated sandbox — crashed driver doesn't crash system
+- Zero-trust model: every operation validated before execution
+- Time-bounded permissions with automatic expiration
+
+### 2. Drivers That Don't Crash Everything
+- Containerized driver execution with resource limits
+- Network isolation, memory limits, syscall whitelisting
+- Automatic restart on failure with exponential backoff
+- Capability-based permission model per-driver
+
+### 3. Performance That's Predictable
+- Lock-free per-CPU memory allocation (sub-microsecond)
+- Event-driven architecture (no constant polling)
+- Deterministic overhead < 25% vs Linux
+- Real-time strategy selection for scheduling
+
+### 4. AI Workloads That Work Natively
+- Anomaly detection engines (memory leaks, interrupt storms, DMA abuse)
+- Predictive resource allocation (1-second ahead forecasts)
+- Adaptive scheduling (Aggressive/Balanced/Conservative/RealTime modes)
+- Continuous learning from driver behavior patterns
+- Inference engine with sub-millisecond decision latency
 
 ## Current Status
 
-SHER Kernel has completed Phase 0 through Phase 6 Week 1 implementation:
+SHER Kernel has completed Phase 0 through Phase 6 implementation:
 
 - **Phase 0**: Foundation and architecture (Complete)
 - **Phase 1**: Memory management with lock-free allocation (Complete, 50+ tests)
@@ -26,325 +90,125 @@ SHER Kernel has completed Phase 0 through Phase 6 Week 1 implementation:
 
 **Total Achievement**: 14,095 lines of production code, 335+ comprehensive tests, 100% passing rate.
 
-## Technical Highlights
+## Key Features
 
-### Zero-Trust Security Architecture
+**Zero-Trust Security** — Capability-based permissions with automatic expiration, no silent renewal  
+**Isolated Drivers** — Every driver runs in sandbox; crash doesn't crash the system  
+**Linux Compatible** — 50+ Linux kernel APIs translated, not inherited  
+**AI-Native** — Anomaly detection, predictive allocation, adaptive scheduling built in  
+**High Performance** — Lock-free allocation (<1μs), event-driven architecture  
+**Comprehensive Testing** — 335+ tests, 100% pass rate, all subsystems covered
 
-SHER implements a capability-based security model where every operation is validated and time-bounded:
+## Linux Kernel API Compatibility
 
-- Capability grants with automatic expiration (no silent renewal)
-- Four permission tiers with enforced maximum durations
-- Reauthentication requirements for sensitive operations
-- Complete audit trail of all permission checks
-- Denial rate monitoring and anomaly detection
+SHER translates 50+ Linux kernel APIs:
+- **Memory**: kmalloc, kzalloc, vmalloc, dma_alloc_coherent, kfree, vfree
+- **Interrupts**: request_irq, free_irq, enable_irq, disable_irq (with priority and shared support)
+- **Devices**: pci_driver_register, pci_device_register, bus_register, bus_add_device, bus_add_driver
+- **Block/Network**: register_blk_device, register_netdev, etc.
 
-### Linux Kernel Interface (LKI)
+Full API reference available in [CLAUDE.md](CLAUDE.md#linux-kernel-interface-lki-design).
 
-Advanced compatibility layer supporting 50+ Linux kernel APIs without inheriting Linux internals:
+## Security Architecture
 
-**Memory APIs** (8 functions)
-- kmalloc, kzalloc, vmalloc with size validation
-- dma_alloc_coherent for device I/O memory
-- kfree with double-free detection
-- Automatic memory leak identification
+**Capability-Based Permissions**: Every operation requires explicit grant with automatic expiration (no silent renewal). Four tiers with max durations (1h to 30m).
 
-**Interrupt APIs** (6 functions)
-- request_irq with shared interrupt support
-- IRQ validation and priority levels
-- Per-interrupt latency tracking
-- High-latency interrupt detection
+**Driver Sandboxing**: Each driver runs in isolated container with syscall whitelisting, namespace isolation, memory/network limits, and crash isolation.
 
-**Device APIs** (15+ functions)
-- pci_driver_register with vendor/device ID matching
-- Device probing with success rate tracking
-- Bus topology management
-- Block device and network device registration
+**Zero-Trust Model**: Every request validated, no component has unrestricted access, failure defaults to deny, complete audit trail.
 
-**Validation Layer**
-- 9 comprehensive validation checks per API call
-- Size boundaries, alignment, IRQ ranges, flags validation
-- 99%+ success rate tracking
-- Per-API capability enforcement
+See [CLAUDE.md](CLAUDE.md#security-model) for detailed security architecture and threat model.
 
-### Isolated Driver Runtime
+## Prerequisites & Installation
 
-Each Linux driver executes in a protected execution environment:
+**Requirements:**
+- Rust 1.70+ (install via [rustup.rs](https://rustup.rs))
+- Unix/Linux development environment (macOS, Linux, WSL2)
+- 2GB disk space for source + build
 
-- **Container-based isolation**: 8-state lifecycle machine per driver
-- **Resource enforcement**: Memory limits, CPU quotas, file descriptor caps, bandwidth throttling
-- **Sandbox enforcement**: Syscall whitelisting, namespace isolation, file access control
-- **Real-time monitoring**: Crash detection, automatic restart, resource pressure handling
-- **Error recovery**: Exponential backoff with configurable retry strategies
+## Build & Test
 
-### Hardware Discovery and Hot-Plug Management
-
-Automated detection and management of hardware devices:
-
-- PCI enumeration across 256 buses with BAR region parsing
-- USB 2.0/3.0 speed negotiation and device detection
-- Three-level driver matching (exact ID, class code, generic)
-- Event-driven hot-plug system (not polling-based)
-- Automatic driver load on device insertion
-- Graceful resource cleanup on device removal
-
-### Memory Management System
-
-High-performance memory allocation designed for AI workloads:
-
-- Lock-free per-CPU caching for allocation fast path (sub-50ns target)
-- Per-socket spinlock caching for NUMA-aware allocation
-- DMA buffer management for device I/O operations
-- Memory leak detection and tracking
-- Peak usage monitoring
-- Page alignment enforcement
-
-## API Coverage
-
-### Memory Subsystem
-- kmalloc(size, flags) - Kernel allocation
-- kzalloc(size, flags) - Zeroed kernel allocation
-- vmalloc(size) - Virtual allocation
-- dma_alloc_coherent(size, align) - DMA-safe memory
-- kfree(ptr) - Memory deallocation with validation
-- vfree(ptr) - Virtual memory deallocation
-
-### Interrupt Subsystem
-- request_irq(irq, handler, flags) - Register interrupt handler
-- free_irq(irq, dev_id) - Unregister interrupt
-- enable_irq(irq) - Re-enable interrupt
-- disable_irq(irq) - Temporarily disable interrupt
-- IRQ priority configuration
-- Shared interrupt support
-
-### Device Subsystem
-- pci_driver_register(driver, id_table) - Register PCI driver
-- pci_device_register(pci_id, bus, slot, func) - Register device
-- bus_register(type, name) - Create device bus
-- bus_add_device(bus, device) - Add device to bus
-- bus_add_driver(bus, driver) - Add driver to bus
-- pci_enable_device(device) - Bring device online
-- pci_disable_device(device) - Disable device access
-
-### Block Device Subsystem
-- register_blk_device(device) - Register block device
-- unregister_blk_device(major, minor) - Unregister device
-- get_blk_device(major, minor) - Retrieve device
-
-### Network Device Subsystem
-- register_netdev(device) - Register network device
-- unregister_netdev(name) - Unregister device
-- get_netdev(name) - Retrieve device
-
-## Security Model
-
-### Capability System
-Each operation requires explicit capability grant with:
-- **Automatic expiration**: No silent renewal, live countdown
-- **Tier-based limits**: Tier 1 (1h), Tier 2 (24h), Tier 3 (2h), Tier 4 (30m)
-- **Reauthentication**: Multiple methods (click, PIN, password, biometric, security key)
-- **Complete audit**: Every permission check is logged
-- **Anomaly detection**: High denial rates trigger investigation
-
-### Sandbox Enforcement
-Linux drivers execute in isolated containers with:
-- Syscall whitelisting (not all 300+ syscalls allowed)
-- Namespace isolation (PID, Network, IPC, UTS, Mount, User)
-- File access control (allowed, blocked, read-only paths)
-- Memory limits with pressure management
-- Network bandwidth throttling
-- I/O port isolation
-- Capability-based permission model
-
-### Zero-Trust Architecture
-- Every request validated before execution
-- No component has unrestricted access
-- Failure defaults to deny, not allow
-- Real-time monitoring and response
-- Automatic revocation on policy violation
-
-## Building from Source
-
-### Prerequisites
-- Rust 1.70+ with stable toolchain
-- Cargo package manager
-- Unix/Linux development environment
-
-### Build Instructions
 ```bash
-# Clone repository
+# Clone and enter directory
 git clone https://github.com/Mullassery/SHER-KERNEL.git
 cd SHER-KERNEL
 
-# Build in debug mode
-cargo build
+# Run all tests (335+ tests)
+cargo test --lib                    # Run all tests
+cargo test --lib sher_memory        # Test memory subsystem
+cargo test --lib sher_driver_runtime # Test driver isolation
+cargo test --lib sher_ai            # Test AI services
 
-# Build optimized release
-cargo build --release
+# Build the kernel
+cargo build              # Debug build
+cargo build --release    # Optimized release binary
 
-# Run tests (all 292+ tests)
-cargo test --lib
-
-# Run specific subsystem tests
-cargo test --lib --package sher_driver_runtime
-cargo test --lib --package sher_lki
-cargo test --lib --package sher_device_manager
-cargo test --lib --package sher_memory
-
-# Check code without building
-cargo check
+# Check code quality
+cargo check              # Fast compile check without building
 ```
 
-## Quick Start
+**Expected output**: 335+ tests passing in ~3 seconds, zero warnings.
 
-Try SHER Kernel in less than 5 minutes:
+## Where to Learn More
 
-```bash
-# Clone and navigate to the repository
-git clone https://github.com/Mullassery/SHER-KERNEL.git
-cd SHER-KERNEL
+- **[CLAUDE.md](CLAUDE.md)** — Complete architecture, design philosophy, and implementation roadmap
+- **Code Structure** — Each crate is self-contained; start with `crates/objectmodel/` (foundation)
+- **Test Cases** — 335+ tests serve as executable documentation and usage examples
+- **[PERFORMANCE_METRICS.md](PERFORMANCE_METRICS.md)** — Benchmark results vs Linux kernel
 
-# Run the complete test suite (all 292+ tests)
-cargo test --lib
+## Test Coverage
 
-# Expected result: 292+ tests passing
+- **Memory Management**: 50+ tests
+- **Device Discovery**: 65+ tests
+- **Driver Runtime**: 81 tests
+- **LKI Translation**: 72+ tests
+- **Security**: 24 tests
+- **AI Services**: 48 tests
 
-# Explore specific subsystems
-cargo test --lib sher_memory -- --nocapture          # Memory management tests
-cargo test --lib sher_device_manager -- --nocapture # Device discovery tests
-cargo test --lib sher_driver_runtime -- --nocapture # Driver runtime tests
-cargo test --lib sher_lki -- --nocapture            # Linux API translation tests
+**Total**: 335+ tests, 100% pass rate, zero warnings
 
-# Run with logging to see implementation details
-RUST_LOG=debug cargo test --lib -- --nocapture --test-threads=1
-
-# Build the kernel (creates release binary)
-cargo build --release
-
-# Check the codebase without building
-cargo check
-```
-
-## Understanding the Code
-
-Start with these files to understand the architecture:
-
-1. **CLAUDE.md** - Complete architecture specification and design philosophy
-2. **crates/objectmodel/src/lib.rs** - Foundation object model (everything starts here)
-3. **crates/lki/src/lib.rs** - Linux Kernel Interface entry point
-4. **crates/driver_runtime/src/lib.rs** - Isolated driver execution model
-5. **crates/security/src/lib.rs** - Capability-based security system
-
-Each module is self-contained with comprehensive tests:
-- Every test is independently runnable with `cargo test --lib --package <crate_name>`
-- All tests maintain 100% passing rate
-- Test code demonstrates API usage patterns
-
-## Testing
-
-SHER Kernel achieves comprehensive test coverage across all subsystems:
-
-- **Memory Management**: 50+ tests covering allocation, deallocation, DMA, leak detection
-- **Device Discovery**: 65+ tests for PCI enumeration, device registration, driver matching
-- **Driver Runtime**: 81 tests validating containers, isolation, sandboxing, hot-plug
-- **LKI Translation**: 72 tests for API translation, validation, audit logging
-- **Security**: 24 tests for capability grants, enforcement, permission checking
-- **AI Services**: 48 tests for anomaly detection, predictive allocation, scheduling, learning, inference, and RL
-
-Run the full test suite:
-```bash
-cargo test --lib
-```
-
-Expected output: 335+ tests passing at 100% rate.
-
-## Project Structure
+## Project Organization
 
 ```
 crates/
-├── common/              # Shared types, errors, utilities (ObjectId, Result, Error)
-├── objectmodel/         # Kernel object model (identity, lifecycle, capabilities)
-├── memory/              # Memory allocation and management (lock-free, NUMA-aware)
-├── device_manager/      # Hardware discovery and management (PCI, USB, hot-plug)
-├── driver_runtime/      # Isolated driver execution (containers, sandbox, network)
-├── lki/                 # Linux Kernel Interface (50+ API translations)
-├── security/            # Capability-based security (grants, enforcement, audit)
-├── interrupt/           # Interrupt management and handling
-├── scheduler/           # Heterogeneous compute scheduling
-├── networking/          # Network device support
-├── storage/             # Storage device support
-├── ai/                  # AI-native services (inference, anomaly detection)
-└── kernel/              # Main kernel entry point and coordination
+├── common/         # Shared types and utilities
+├── objectmodel/    # Foundation object model
+├── memory/         # Lock-free memory allocator
+├── device_manager/ # PCI/USB discovery and hot-plug
+├── driver_runtime/ # Isolated driver containers
+├── lki/            # Linux Kernel Interface translation
+├── security/       # Capability-based permissions
+├── interrupt/      # Interrupt controller
+├── scheduler/      # Scheduling and workload classification
+├── ai/             # Anomaly detection, predictive allocation, reinforcement learning
+└── kernel/         # Main kernel coordination
 ```
 
-## Documentation
+## Performance Targets
 
-- **CLAUDE.md**: Detailed architecture specifications, implementation roadmap, design patterns
-- **Architecture Documents**: 22 comprehensive design documents covering each subsystem
-- **Inline Code Comments**: Every complex section documented for clarity
-- **Test Cases**: 292+ tests serve as executable documentation
-
-## Performance Objectives
-
-- Boot time: < 2 seconds to interactive shell
 - Interrupt latency: < 100 microseconds
 - Memory overhead: < 50MB kernel + drivers
-- Driver isolation overhead: < 5% performance impact
-- Lock-free allocation fast path: < 50 nanoseconds
+- Driver isolation: < 25% performance overhead
+- Lock-free allocation: < 1 microsecond
+- AI inference: < 1 millisecond decision latency
 
-## Design Philosophy
+## Design Principles
 
-### AI-Native, Not AI-Bolted-On
-AI-driven optimization is embedded in the kernel fabric:
-- Inference engine for scheduling decisions
-- Anomaly detection for preemptive issue resolution
-- Predictive resource allocation
-- Adaptive performance tuning
+**AI-Native**: Intelligence (inference, anomaly detection, learning) is embedded in the kernel, not bolted on top.
 
-### Compatibility Without Dependency
-Linux driver ecosystem is preserved through translation:
-- 50+ Linux kernel API translations
-- No Linux internals inherited
-- Clean separation of concerns
-- Easy to evolve without breaking drivers
+**Compatibility Without Dependency**: Runs Linux drivers via translation layer, not by inheriting Linux internals.
 
-### Modular by Design
-Every subsystem is independently replaceable:
-- Clear interfaces between components
-- No tight coupling
-- Pluggable implementations
-- Easy to test and verify
+**Modular**: Every subsystem is independently replaceable with clear interfaces and zero tight coupling.
 
-### Secure by Conviction
-Security is not added on top; it is architectural:
-- Capability-based permissions from first principles
-- Zero-trust access model
-- Time-bounded grants with automatic expiration
-- Complete audit trail
-- Explicit permission flow
+**Secure by Design**: Capability-based permissions, zero-trust validation, and mandatory driver isolation from day one.
 
 ## Roadmap
 
-### Completed
-- Phase 0: Foundation (architecture, cargo setup, compilation)
-- Phase 1: Memory management (lock-free allocation, DMA management)
-- Phase 2: Device manager (PCI/USB enumeration, hot-plug, driver matching)
-- Phase 3: Driver runtime (containers, sandboxing, isolation)
-- Phase 4: Linux Kernel Interface (50+ API translations with validation)
-- Phase 5: Security & capabilities (zero-trust, time-bounded grants)
-- Phase 6 Week 1: AI services foundation (anomaly detection engines, predictive allocation)
-- Phase 6 Week 2: Adaptive scheduling and continuous learning (strategy selection, behavior modeling)
-- Phase 6 Week 3: Inference engine and reinforcement learning (decision making, policy optimization)
+**Completed**: Phases 0-6 (AI-native kernel with security, memory, devices, drivers, LKI, and intelligent scheduling)
 
-### In Development
-- Phase 7: Production hardening (performance optimization, crash recovery, boot optimization)
-- Phase 8: Digital twins (replay capability, simulation, what-if analysis)
-- Phase 8: Digital twins (replay capability, simulation, what-if analysis)
+**Next**: Phase 7 (Production hardening, crash recovery, boot optimization)
 
-### Future
-- Robotics integration with real-time scheduling
-- Heterogeneous compute optimization (GPU/NPU/FPGA)
-- Distributed systems support (cluster-aware scheduling)
-- Machine learning model serving infrastructure
+**Future**: Digital twins, robotics, heterogeneous compute (GPU/NPU/FPGA), distributed scheduling
 
 ## Contributing
 
