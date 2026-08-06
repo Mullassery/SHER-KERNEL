@@ -1,0 +1,14 @@
+[package]
+name = "sher_bootstrap"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER Bootstrap: Stage 0 - CPU bring-up, MMU, immutable verification (<50ms)"
+
+[dependencies]
+sher_common = { path = "../common" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

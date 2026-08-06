@@ -1,0 +1,15 @@
+[package]
+name = "sher_runtime"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER Runtime - Stage 2: Dynamic service loader, lazy initialization"
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_core = { path = "../core" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

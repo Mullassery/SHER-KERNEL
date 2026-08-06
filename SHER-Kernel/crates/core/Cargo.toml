@@ -1,0 +1,16 @@
+[package]
+name = "sher_core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER Core - Stage 1: Object model, IPC, capabilities, timer, basic scheduler"
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_objectmodel = { path = "../objectmodel" }
+sher_security = { path = "../security" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

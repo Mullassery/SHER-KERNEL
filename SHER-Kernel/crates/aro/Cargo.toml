@@ -1,0 +1,16 @@
+[package]
+name = "sher_aro"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER ARO: Adaptive Resource Orchestrator - scales OS from 128MB IoT to 128GB AI workstations"
+
+[dependencies]
+sher_common = { path = "../common" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

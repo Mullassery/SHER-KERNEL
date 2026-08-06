@@ -1,0 +1,13 @@
+[package]
+name = "sher_compute"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Compute schedulers: CPU, GPU, NPU, DSP (lazy loaded per accelerator)"
+
+[dependencies]
+sher_common = { path = "../common" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

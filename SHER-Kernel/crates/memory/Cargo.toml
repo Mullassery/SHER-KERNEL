@@ -1,0 +1,15 @@
+[package]
+name = "sher_memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_objectmodel = { path = "../objectmodel" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }

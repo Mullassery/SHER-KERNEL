@@ -1,0 +1,33 @@
+[package]
+name = "sher_kernel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER Kernel: AI-Native Operating System Kernel"
+
+[[bin]]
+name = "sher_kernel"
+path = "src/main.rs"
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_objectmodel = { path = "../objectmodel" }
+sher_security = { path = "../security" }
+sher_memory = { path = "../memory" }
+sher_scheduler = { path = "../scheduler" }
+sher_interrupt = { path = "../interrupt" }
+sher_networking = { path = "../networking" }
+sher_storage = { path = "../storage" }
+sher_device_manager = { path = "../device_manager" }
+sher_driver_runtime = { path = "../driver_runtime" }
+sher_lki = { path = "../lki" }
+sher_ai = { path = "../ai" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }

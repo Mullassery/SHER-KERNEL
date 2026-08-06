@@ -1,0 +1,13 @@
+[package]
+name = "sher_snapshot"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER Snapshots: Instant rollback engine for any component"
+
+[dependencies]
+sher_common = { path = "../common" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

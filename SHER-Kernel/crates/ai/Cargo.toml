@@ -1,0 +1,18 @@
+[package]
+name = "sher_ai"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "AI-native kernel services: scheduling, monitoring, optimization"
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_objectmodel = { path = "../objectmodel" }
+sher_scheduler = { path = "../scheduler" }
+sher_memory = { path = "../memory" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }

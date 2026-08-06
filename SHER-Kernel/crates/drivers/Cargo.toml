@@ -1,0 +1,15 @@
+[package]
+name = "sher_drivers"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER Driver Runtime: Isolated containers, load on first use"
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_objectmodel = { path = "../objectmodel" }
+sher_security = { path = "../security" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

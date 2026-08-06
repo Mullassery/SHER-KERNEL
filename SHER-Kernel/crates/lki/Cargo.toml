@@ -1,0 +1,21 @@
+[package]
+name = "sher_lki"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Linux Kernel Interface - Compatibility layer for Linux kernel drivers"
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_objectmodel = { path = "../objectmodel" }
+sher_memory = { path = "../memory" }
+sher_device_manager = { path = "../device_manager" }
+sher_driver_runtime = { path = "../driver_runtime" }
+sher_security = { path = "../security" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+uuid = { workspace = true }

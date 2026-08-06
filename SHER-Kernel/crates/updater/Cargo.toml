@@ -1,0 +1,15 @@
+[package]
+name = "sher_updater"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SHER Updater: Transactional, atomic, rollback-safe updates"
+
+[dependencies]
+sher_common = { path = "../common" }
+sher_recovery = { path = "../recovery" }
+sher_snapshot = { path = "../snapshot" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
