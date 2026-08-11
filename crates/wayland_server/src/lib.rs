@@ -1,26 +1,35 @@
-//! Wayland Compositor - Phase 11 Layer 6
+//! Wayland Compositor - Phase 11 Layer 6 (DEPRECATED)
 //!
-//! Display server implementation providing:
-//! - Client connection management
-//! - Surface and buffer management
-//! - Render target coordination
-//! - Input event routing to surfaces
-//! - Output (display) management
-//! - Focus management
-//! - Cursor and pointer handling
-//! - Basic rendering pipeline
+//! ## Ownership boundary
+//!
+//! This crate historically implemented a full Wayland compositor —
+//! surfaces, outputs, pointer routing, focus — inside SHER-Kernel. That
+//! ownership was wrong: the kernel should transport primitives, not decide
+//! what they mean or how they're presented.
+//!
+//! - **SHER-Kernel** (this crate, [`transport`]) owns: client connections,
+//!   protocol message handling, shared-memory buffer handles, and
+//!   kernel-facing synchronization. See [`WaylandTransport`].
+//! - **SHER-Display** owns: surfaces, outputs, pointer/keyboard/seat,
+//!   surface lifecycle, compositing, and display policy. It consumes
+//!   [`WaylandTransport`] as its low-level substrate rather than
+//!   duplicating it — see `sher-display/compatibility-wayland`.
+//!
+//! [`WaylandCompositor`] below is retained for compatibility during
+//! migration and is deprecated: do not add new functionality to it. New
+//! compositor policy belongs in SHER-Display.
+
+pub mod transport;
+pub use transport::{Buffer, WaylandClient, WaylandTransport};
 
 use sher_common::{ObjectId, Result};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
-pub struct WaylandClient {
-    pub id: ObjectId,
-    pub name: String,
-    pub is_connected: bool,
-}
-
-#[derive(Clone, Debug)]
+#[deprecated(
+    since = "0.1.0",
+    note = "surface policy now owned by SHER-Display; see sher-display/surfaces"
+)]
 pub struct Surface {
     pub id: ObjectId,
     pub client_id: ObjectId,
@@ -31,16 +40,10 @@ pub struct Surface {
 }
 
 #[derive(Clone, Debug)]
-pub struct Buffer {
-    pub id: ObjectId,
-    pub width: u32,
-    pub height: u32,
-    pub format: u32,
-    pub stride: u32,
-    pub size_bytes: usize,
-}
-
-#[derive(Clone, Debug)]
+#[deprecated(
+    since = "0.1.0",
+    note = "output policy now owned by SHER-Display; see sher-display/outputs"
+)]
 pub struct Output {
     pub id: ObjectId,
     pub name: String,
@@ -51,6 +54,10 @@ pub struct Output {
 }
 
 #[derive(Clone, Debug)]
+#[deprecated(
+    since = "0.1.0",
+    note = "input routing now owned by SHER-Display; see sher-display/input"
+)]
 pub enum PointerEventType {
     Motion,
     Button,
@@ -60,6 +67,10 @@ pub enum PointerEventType {
 }
 
 #[derive(Clone, Debug)]
+#[deprecated(
+    since = "0.1.0",
+    note = "input routing now owned by SHER-Display; see sher-display/input"
+)]
 pub struct PointerEvent {
     pub surface_id: Option<ObjectId>,
     pub event_type: PointerEventType,
@@ -68,6 +79,11 @@ pub struct PointerEvent {
     pub button: Option<u32>,
 }
 
+#[deprecated(
+    since = "0.1.0",
+    note = "compositor policy now owned by SHER-Display; see sher-display/compositor. \
+            Use wayland_server::WaylandTransport for the low-level substrate."
+)]
 pub struct WaylandCompositor {
     clients: HashMap<ObjectId, WaylandClient>,
     surfaces: HashMap<ObjectId, Surface>,
@@ -78,6 +94,7 @@ pub struct WaylandCompositor {
     is_running: bool,
 }
 
+#[allow(deprecated)]
 impl WaylandCompositor {
     pub fn new() -> Self {
         WaylandCompositor {
@@ -272,6 +289,7 @@ impl WaylandCompositor {
     }
 }
 
+#[allow(deprecated)]
 impl Default for WaylandCompositor {
     fn default() -> Self {
         Self::new()
@@ -279,6 +297,7 @@ impl Default for WaylandCompositor {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
