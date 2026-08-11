@@ -77,6 +77,9 @@ pub enum Capability {
     NetworkAccess = 64,
     DmaAccess = 128,
     Admin = 256,
+    GpuMemoryAlloc = 512,
+    GpuCommandSubmit = 1024,
+    GpuAdmin = 2048,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
