@@ -46,7 +46,7 @@ impl PciEnumerator {
     pub fn new() -> Self {
         PciEnumerator {
             devices: Vec::new(),
-            segments: 1,  // Single segment typical
+            segments: 1, // Single segment typical
             enumeration_complete: false,
         }
     }
@@ -110,8 +110,18 @@ impl PciEnumerator {
         Ok(device_found)
     }
 
-    fn add_device(&mut self, segment: u16, bus: u8, slot: u8, function: u8,
-                  vendor_id: u16, device_id: u16, class_code: u8, subclass_code: u8) {
+    #[allow(clippy::too_many_arguments)]
+    fn add_device(
+        &mut self,
+        segment: u16,
+        bus: u8,
+        slot: u8,
+        function: u8,
+        vendor_id: u16,
+        device_id: u16,
+        class_code: u8,
+        subclass_code: u8,
+    ) {
         let mut device = PciDevice {
             segment,
             bus,
@@ -134,8 +144,8 @@ impl PciEnumerator {
         match (vendor_id, device_id) {
             (0x8086, 0x1234) => {
                 // Ethernet: 64KB memory + 32B I/O
-                device.bar_regions[0] = 0xf0000000;  // 64KB memory region
-                device.bar_regions[1] = 0xd000;      // 32B I/O region
+                device.bar_regions[0] = 0xf0000000; // 64KB memory region
+                device.bar_regions[1] = 0xd000; // 32B I/O region
                 device.interrupt_line = 16;
                 device.interrupt_pin = 1;
                 device.capabilities.push(PciCapability::PowerManagement);
@@ -165,7 +175,9 @@ impl PciEnumerator {
     }
 
     pub fn find_by_vendor_device(&self, vendor: u16, device: u16) -> Option<&PciDevice> {
-        self.devices.iter().find(|d| d.vendor_id == vendor && d.device_id == device)
+        self.devices
+            .iter()
+            .find(|d| d.vendor_id == vendor && d.device_id == device)
     }
 
     pub fn find_by_class(&self, class: u8, subclass: u8) -> Vec<&PciDevice> {
@@ -226,22 +238,32 @@ impl UsbEnumerator {
 
         // Simulate common USB devices
         // Bus 0: Built-in USB 2.0 hub
-        self.add_device(0, 1, 0x1234, 0x5678, 0x09, 0x00, UsbSpeed::High, None);  // Hub
+        self.add_device(0, 1, 0x1234, 0x5678, 0x09, 0x00, UsbSpeed::High, None); // Hub
 
         // Bus 0: Connected USB devices
-        self.add_device(0, 2, 0x046d, 0xc534, 0x00, 0x00, UsbSpeed::High, Some(1));  // Logitech mouse
-        self.add_device(0, 3, 0x067b, 0x2507, 0x08, 0x06, UsbSpeed::High, Some(1));  // Prolific USB-SATA
+        self.add_device(0, 2, 0x046d, 0xc534, 0x00, 0x00, UsbSpeed::High, Some(1)); // Logitech mouse
+        self.add_device(0, 3, 0x067b, 0x2507, 0x08, 0x06, UsbSpeed::High, Some(1)); // Prolific USB-SATA
 
         // Bus 1: USB 3.0 controller
-        self.add_device(1, 1, 0x1234, 0x5679, 0x09, 0x00, UsbSpeed::SuperSpeed, None);  // Hub
+        self.add_device(1, 1, 0x1234, 0x5679, 0x09, 0x00, UsbSpeed::SuperSpeed, None); // Hub
 
         self.host_controller_count = 2;
         self.enumeration_complete = true;
         Ok(self.devices.len())
     }
 
-    fn add_device(&mut self, bus: u8, address: u8, vendor: u16, product: u16,
-                  dev_class: u8, dev_subclass: u8, speed: UsbSpeed, parent: Option<u8>) {
+    #[allow(clippy::too_many_arguments)]
+    fn add_device(
+        &mut self,
+        bus: u8,
+        address: u8,
+        vendor: u16,
+        product: u16,
+        dev_class: u8,
+        dev_subclass: u8,
+        speed: UsbSpeed,
+        parent: Option<u8>,
+    ) {
         self.devices.push(UsbDevice {
             bus,
             address,
@@ -269,7 +291,9 @@ impl UsbEnumerator {
     }
 
     pub fn find_by_vendor_product(&self, vendor: u16, product: u16) -> Option<&UsbDevice> {
-        self.devices.iter().find(|d| d.vendor_id == vendor && d.product_id == product)
+        self.devices
+            .iter()
+            .find(|d| d.vendor_id == vendor && d.product_id == product)
     }
 
     pub fn find_by_class(&self, class: u8) -> Vec<&UsbDevice> {
@@ -282,7 +306,7 @@ impl UsbEnumerator {
     pub fn find_hubs(&self) -> Vec<&UsbDevice> {
         self.devices
             .iter()
-            .filter(|d| d.device_class == 0x09)  // Hub class
+            .filter(|d| d.device_class == 0x09) // Hub class
             .collect()
     }
 }

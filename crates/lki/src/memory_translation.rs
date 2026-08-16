@@ -1,9 +1,9 @@
 // SHER LKI: Memory Allocation Translation
 // Maps Linux kmalloc/vmalloc/kfree to SHER memory primitives
 
-use sher_common::{ObjectId, Result, Error};
 use crate::validation::Validator;
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -12,19 +12,19 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AllocationMode {
-    Kmalloc,      // Kernel memory, must be < page size
-    Vmalloc,      // Virtual memory, can be > page size
-    DmaAlloc,     // DMA-safe memory for device I/O
-    Kcalloc,      // Kmalloc + zeroed
-    Kzalloc,      // Kmalloc + zeroed (same as kcalloc)
+    Kmalloc,  // Kernel memory, must be < page size
+    Vmalloc,  // Virtual memory, can be > page size
+    DmaAlloc, // DMA-safe memory for device I/O
+    Kcalloc,  // Kmalloc + zeroed
+    Kzalloc,  // Kmalloc + zeroed (same as kcalloc)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GfpFlag {
-    GfpKernel,      // Can sleep, normal allocation
-    GfpAtomic,      // Cannot sleep, must use existing pool
-    GfpNowarn,      // Don't warn on failure
-    GfpHighuser,    // Prefer high memory
+    GfpKernel,   // Can sleep, normal allocation
+    GfpAtomic,   // Cannot sleep, must use existing pool
+    GfpNowarn,   // Don't warn on failure
+    GfpHighuser, // Prefer high memory
 }
 
 // ============================================================================
@@ -79,11 +79,8 @@ impl MemoryAllocation {
     }
 
     pub fn lifetime_ms(&self) -> Option<u64> {
-        if let Some(freed_time) = self.freed_time_ms {
-            Some(freed_time.saturating_sub(self.allocation_time_ms))
-        } else {
-            None
-        }
+        self.freed_time_ms
+            .map(|freed_time| freed_time.saturating_sub(self.allocation_time_ms))
     }
 }
 
@@ -94,7 +91,7 @@ impl MemoryAllocation {
 #[derive(Debug, Clone, Default)]
 pub struct LinuxMemoryAllocator {
     pub validator: Validator,
-    pub allocations: HashMap<u64, MemoryAllocation>,  // address -> allocation
+    pub allocations: HashMap<u64, MemoryAllocation>, // address -> allocation
     pub total_allocated: u64,
     pub peak_allocated: u64,
     pub allocation_count: u64,
@@ -118,9 +115,12 @@ impl LinuxMemoryAllocator {
         // Validate size
         self.validator.validate_allocation(size, 0)?;
 
-        if size > 128 * 1024 {  // kmalloc limited to ~128KB
+        if size > 128 * 1024 {
+            // kmalloc limited to ~128KB
             self.failed_allocations += 1;
-            return Err(Error::AllocationFailed("kmalloc size too large".to_string()));
+            return Err(Error::AllocationFailed(
+                "kmalloc size too large".to_string(),
+            ));
         }
 
         // Simulate address allocation
@@ -192,12 +192,14 @@ impl LinuxMemoryAllocator {
             }
 
             alloc.freed = true;
-            alloc.freed_time_ms = Some(0);  // Would be current time
+            alloc.freed_time_ms = Some(0); // Would be current time
             self.total_allocated = self.total_allocated.saturating_sub(alloc.size);
             Ok(())
         } else {
             self.failed_allocations += 1;
-            Err(Error::AllocationFailed("Invalid pointer for kfree".to_string()))
+            Err(Error::AllocationFailed(
+                "Invalid pointer for kfree".to_string(),
+            ))
         }
     }
 
@@ -223,10 +225,7 @@ impl LinuxMemoryAllocator {
 
     /// Detect memory leaks (allocations never freed)
     pub fn find_leaks(&self) -> Vec<&MemoryAllocation> {
-        self.allocations
-            .values()
-            .filter(|a| !a.freed)
-            .collect()
+        self.allocations.values().filter(|a| !a.freed).collect()
     }
 
     /// Get allocation statistics

@@ -1,5 +1,5 @@
-use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
+use sher_common::ObjectId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageDevice {
@@ -17,5 +17,20 @@ impl StorageDevice {
             capacity,
             device_type: device_type.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_device_has_unique_id_and_stored_fields() {
+        let a = StorageDevice::new("nvme0", 512_000_000_000, "NVMe");
+        let b = StorageDevice::new("nvme0", 512_000_000_000, "NVMe");
+        assert_ne!(a.id, b.id);
+        assert_eq!(a.name, "nvme0");
+        assert_eq!(a.capacity, 512_000_000_000);
+        assert_eq!(a.device_type, "NVMe");
     }
 }

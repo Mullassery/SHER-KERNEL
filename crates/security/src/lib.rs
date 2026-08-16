@@ -7,10 +7,10 @@
 //! - Every service is observable
 //! - Every object is authenticated
 
+pub mod audit;
 pub mod capabilities;
 pub mod isolation;
-pub mod audit;
 
+pub use audit::AuditLog;
 pub use capabilities::SecurityContext;
 pub use isolation::Sandbox;
-pub use audit::AuditLog;

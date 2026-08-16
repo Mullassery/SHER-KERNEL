@@ -4,32 +4,33 @@
 //! Every Linux driver API call is validated, translated, and tracked.
 //! Supports 50+ Linux kernel APIs with full audit logging.
 
+pub mod audit;
+pub mod device_compat;
+pub mod device_translation;
+pub mod enforcement;
+pub mod interrupt_translation;
 pub mod linux_api;
 pub mod memory_compat;
-pub mod device_compat;
-pub mod validation;
 pub mod memory_translation;
-pub mod interrupt_translation;
-pub mod device_translation;
-pub mod audit;
 pub mod security;
-pub mod enforcement;
+pub mod validation;
 
 #[cfg(test)]
 mod tests;
 
+pub use audit::{AuditEntry, AuditLevel, AuditLog};
+pub use device_compat::LinuxDeviceApi;
+pub use device_translation::{
+    BlockDevice, BlockDeviceManager, BusType, DeviceBus, DeviceManager, NetworkDevice,
+    NetworkDeviceManager, PciDevice, PciDeviceId, PciDriver,
+};
+pub use enforcement::{PermissionChecker, SecurityContext, SecurityEnforcer};
+pub use interrupt_translation::{InterruptHandler, InterruptManager};
 pub use linux_api::LinuxKernelInterface;
 pub use memory_compat::LinuxMemoryApi;
-pub use device_compat::LinuxDeviceApi;
-pub use validation::{ValidationResult, ValidationError, Validator};
-pub use memory_translation::{LinuxMemoryAllocator, AllocationMode, MemoryAllocation};
-pub use interrupt_translation::{InterruptHandler, InterruptManager};
-pub use device_translation::{
-    DeviceManager, PciDriver, PciDevice, PciDeviceId, DeviceBus, BusType,
-    BlockDevice, BlockDeviceManager, NetworkDevice, NetworkDeviceManager,
-};
-pub use audit::{AuditLog, AuditEntry, AuditLevel};
+pub use memory_translation::{AllocationMode, LinuxMemoryAllocator, MemoryAllocation};
 pub use security::{
-    Capability, PermissionTier, CapabilityGrant, CapabilityManager, SecurityPolicy, SecurityLevel, ReauthMethod,
+    Capability, CapabilityGrant, CapabilityManager, PermissionTier, ReauthMethod, SecurityLevel,
+    SecurityPolicy,
 };
-pub use enforcement::{SecurityContext, SecurityEnforcer, PermissionChecker};
+pub use validation::{ValidationError, ValidationResult, Validator};

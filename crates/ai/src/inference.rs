@@ -1,19 +1,10 @@
-use sher_common::Result;
 use serde::{Deserialize, Serialize};
+use sher_common::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct InferenceEngine {
     pub model_name: Option<String>,
     pub inferences_completed: u64,
-}
-
-impl Default for InferenceEngine {
-    fn default() -> Self {
-        Self {
-            model_name: None,
-            inferences_completed: 0,
-        }
-    }
 }
 
 impl InferenceEngine {

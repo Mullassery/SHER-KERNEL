@@ -71,6 +71,10 @@ pub enum PointerEventType {
     since = "0.1.0",
     note = "input routing now owned by SHER-Display; see sher-display/input"
 )]
+// This deprecated struct's own field referencing the also-deprecated
+// `PointerEventType` is expected self-reference, not a new deprecated
+// usage — see the identical rationale on `WaylandCompositor` below.
+#[allow(deprecated)]
 pub struct PointerEvent {
     pub surface_id: Option<ObjectId>,
     pub event_type: PointerEventType,
@@ -84,6 +88,11 @@ pub struct PointerEvent {
     note = "compositor policy now owned by SHER-Display; see sher-display/compositor. \
             Use wayland_server::WaylandTransport for the low-level substrate."
 )]
+// Fields reference `Surface`/`Output`, also deprecated in this same
+// migration; that's expected internal self-reference, not a new usage of a
+// deprecated API by an external caller, so it's silenced here rather than
+// at every call site.
+#[allow(deprecated)]
 pub struct WaylandCompositor {
     clients: HashMap<ObjectId, WaylandClient>,
     surfaces: HashMap<ObjectId, Surface>,
@@ -123,7 +132,7 @@ impl WaylandCompositor {
     }
 
     pub fn connect_client(&mut self, client: WaylandClient) -> Result<()> {
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let mut client = client;
         client.is_connected = true;
         self.clients.insert(client_id, client);
@@ -148,14 +157,14 @@ impl WaylandCompositor {
 
         let surface = Surface {
             id: ObjectId::new(),
-            client_id: client_id.clone(),
+            client_id: *client_id,
             width: 0,
             height: 0,
             buffer_id: None,
             damage_region: false,
         };
 
-        self.surfaces.insert(surface.id.clone(), surface.clone());
+        self.surfaces.insert(surface.id, surface.clone());
         Ok(surface)
     }
 
@@ -163,7 +172,12 @@ impl WaylandCompositor {
         self.surfaces.get(surface_id).cloned()
     }
 
-    pub fn configure_surface(&mut self, surface_id: &ObjectId, width: u32, height: u32) -> Result<()> {
+    pub fn configure_surface(
+        &mut self,
+        surface_id: &ObjectId,
+        width: u32,
+        height: u32,
+    ) -> Result<()> {
         if let Some(surface) = self.surfaces.get_mut(surface_id) {
             surface.width = width;
             surface.height = height;
@@ -197,7 +211,7 @@ impl WaylandCompositor {
             size_bytes,
         };
 
-        self.buffers.insert(buffer.id.clone(), buffer.clone());
+        self.buffers.insert(buffer.id, buffer.clone());
         Ok(buffer)
     }
 
@@ -211,7 +225,7 @@ impl WaylandCompositor {
         }
 
         if let Some(surface) = self.surfaces.get_mut(surface_id) {
-            surface.buffer_id = Some(buffer_id.clone());
+            surface.buffer_id = Some(*buffer_id);
             Ok(())
         } else {
             Err(sher_common::Error::Device("Surface not found".to_string()))
@@ -228,7 +242,7 @@ impl WaylandCompositor {
     }
 
     pub fn register_output(&mut self, output: Output) -> Result<()> {
-        self.outputs.insert(output.id.clone(), output);
+        self.outputs.insert(output.id, output);
         Ok(())
     }
 
@@ -242,7 +256,7 @@ impl WaylandCompositor {
     }
 
     pub fn get_focused_surface(&self) -> Option<ObjectId> {
-        self.focused_surface.clone()
+        self.focused_surface
     }
 
     pub fn route_pointer_event(&mut self, event: PointerEvent) -> Result<()> {
@@ -344,7 +358,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
         assert_eq!(compositor.client_count(), 1);
 
@@ -362,7 +376,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let result = compositor.create_surface(&client_id);
@@ -379,7 +393,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let surface = compositor.create_surface(&client_id).unwrap();
@@ -400,7 +414,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let surface = compositor.create_surface(&client_id).unwrap();
@@ -432,7 +446,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let surface = compositor.create_surface(&client_id).unwrap();
@@ -454,7 +468,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let surface = compositor.create_surface(&client_id).unwrap();
@@ -491,7 +505,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let surface = compositor.create_surface(&client_id).unwrap();
@@ -524,7 +538,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let _surface1 = compositor.create_surface(&client_id).unwrap();
@@ -543,7 +557,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = compositor.connect_client(client);
 
         let surface = compositor.create_surface(&client_id).unwrap();

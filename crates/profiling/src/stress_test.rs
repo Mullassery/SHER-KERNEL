@@ -6,10 +6,10 @@
 //! - Long-running operations
 //! - Cascading failures
 
+use sher_common::Result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use sher_common::Result;
 
 #[derive(Clone, Debug)]
 pub struct StressTestConfig {

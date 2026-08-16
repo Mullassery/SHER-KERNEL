@@ -2,11 +2,11 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::anomaly_detection::*;
-    use crate::predictive_allocation::*;
     use crate::adaptive_scheduling::*;
+    use crate::anomaly_detection::*;
     use crate::continuous_learning::*;
     use crate::inference_engine::*;
+    use crate::predictive_allocation::*;
     use crate::reinforcement_learning::*;
     use sher_common::ObjectId;
 
@@ -89,7 +89,27 @@ mod tests {
 
         let anom = anomaly.unwrap();
         assert_eq!(anom.anomaly_type, AnomalyType::DmaAbuse);
-        assert_eq!(anom.severity, AnomalySeverity::High);
+        // All 150 operations are writes (write_ratio = 1.0), which the
+        // detector treats as more consistent with memory
+        // corruption/exfiltration than a read-heavy burst, escalating this
+        // above the plain concurrency-threshold breach's `High` severity.
+        assert_eq!(anom.severity, AnomalySeverity::Critical);
+        assert_eq!(anom.metrics.get("write_ratio").copied(), Some(1.0));
+    }
+
+    #[test]
+    fn test_dma_abuse_detection_read_heavy_is_less_severe() {
+        let mut detector = DmaAbuseDetector::new();
+        let driver_id = ObjectId::new();
+
+        // Same concurrency breach as above, but read-dominated traffic.
+        for i in 0..150 {
+            detector.record_dma(driver_id, 1 * 1024 * 1024, false, i);
+        }
+
+        let anomaly = detector.detect_abuse(driver_id, 150).unwrap();
+        assert_eq!(anomaly.severity, AnomalySeverity::High);
+        assert_eq!(anomaly.metrics.get("write_ratio").copied(), Some(0.0));
     }
 
     #[test]
@@ -180,7 +200,10 @@ mod tests {
         assert_eq!(allocator.profiles.len(), 1);
         let profile = allocator.profiles.get(&driver_id).unwrap();
         assert_eq!(profile.samples, 1);
-        assert_eq!(profile.memory_usage_pattern.peak_allocation_bytes, 100 * 1024 * 1024);
+        assert_eq!(
+            profile.memory_usage_pattern.peak_allocation_bytes,
+            100 * 1024 * 1024
+        );
     }
 
     #[test]
@@ -257,9 +280,18 @@ mod tests {
 
     #[test]
     fn test_allocation_priority_levels() {
-        assert_eq!(IoSchedulingClass::from_io_rate(15_000.0), IoSchedulingClass::Realtime);
-        assert_eq!(IoSchedulingClass::from_io_rate(5_000.0), IoSchedulingClass::BestEffort);
-        assert_eq!(IoSchedulingClass::from_io_rate(500.0), IoSchedulingClass::Idle);
+        assert_eq!(
+            IoSchedulingClass::from_io_rate(15_000.0),
+            IoSchedulingClass::Realtime
+        );
+        assert_eq!(
+            IoSchedulingClass::from_io_rate(5_000.0),
+            IoSchedulingClass::BestEffort
+        );
+        assert_eq!(
+            IoSchedulingClass::from_io_rate(500.0),
+            IoSchedulingClass::Idle
+        );
     }
 
     #[test]
@@ -305,7 +337,10 @@ mod tests {
         }
 
         let by_cpu = allocator.get_profiles_by_cpu_load();
-        assert!(by_cpu[0].cpu_usage_pattern.avg_utilization_percent >= by_cpu[1].cpu_usage_pattern.avg_utilization_percent);
+        assert!(
+            by_cpu[0].cpu_usage_pattern.avg_utilization_percent
+                >= by_cpu[1].cpu_usage_pattern.avg_utilization_percent
+        );
     }
 
     // ========================================================================
@@ -342,7 +377,7 @@ mod tests {
             SchedulingStrategy::Balanced,
             50.0,
             50.0,
-            10,   // high anomalies
+            10, // high anomalies
             50.0,
             60.0,
         );
@@ -393,7 +428,15 @@ mod tests {
 
         for _ in 0..5 {
             let driver_id = ObjectId::new();
-            scheduler.decide_scheduling(driver_id, SchedulingStrategy::Balanced, 50.0, 50.0, 0, 50.0, 60.0);
+            scheduler.decide_scheduling(
+                driver_id,
+                SchedulingStrategy::Balanced,
+                50.0,
+                50.0,
+                0,
+                50.0,
+                60.0,
+            );
             scheduler.record_slo_result(driver_id, 55.0, 60.0, 1000);
         }
 

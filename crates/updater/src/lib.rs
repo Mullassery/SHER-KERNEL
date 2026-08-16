@@ -9,8 +9,8 @@
 //!
 //! Power fails at any point → Just boot previous version
 
+pub mod commit;
 pub mod transaction;
 pub mod verify;
-pub mod commit;
 
-pub use transaction::Transaction;
+pub use transaction::{Transaction, TransactionState};

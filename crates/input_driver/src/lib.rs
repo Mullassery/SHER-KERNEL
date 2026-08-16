@@ -8,8 +8,8 @@
 //! - Keyboard layout management
 //! - Button and axis event handling
 
-use std::collections::HashMap;
 use sher_common::{ObjectId, Result};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InputDeviceType {
@@ -91,7 +91,7 @@ impl InputDriver {
     }
 
     pub fn register_device(&mut self, device: InputDevice) -> Result<()> {
-        self.devices.insert(device.id.clone(), device);
+        self.devices.insert(device.id, device);
         Ok(())
     }
 
@@ -114,7 +114,14 @@ impl InputDriver {
     pub fn get_pointing_devices(&self) -> Vec<InputDevice> {
         self.devices
             .values()
-            .filter(|d| matches!(d.device_type, InputDeviceType::Mouse | InputDeviceType::Touchpad | InputDeviceType::TouchScreen))
+            .filter(|d| {
+                matches!(
+                    d.device_type,
+                    InputDeviceType::Mouse
+                        | InputDeviceType::Touchpad
+                        | InputDeviceType::TouchScreen
+                )
+            })
             .cloned()
             .collect()
     }
@@ -164,7 +171,15 @@ impl InputDriver {
     }
 
     pub fn start_touch(&mut self, touch_id: u32, x: u32, y: u32, pressure: u16) -> Result<()> {
-        self.active_touches.insert(touch_id, Touch { id: touch_id, x, y, pressure });
+        self.active_touches.insert(
+            touch_id,
+            Touch {
+                id: touch_id,
+                x,
+                y,
+                pressure,
+            },
+        );
         Ok(())
     }
 

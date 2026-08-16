@@ -5,10 +5,10 @@
 // Phase 1 Week 2 Implementation
 // Status: Tier 0 Allocator - Core Implementation
 
-use sher_common::{Result, Error};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::cell::UnsafeCell;
+use sher_common::{Error, Result};
 use std::alloc::{alloc, dealloc, Layout};
+use std::cell::UnsafeCell;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 // ============================================================================
 // TIER 0 SIZE CLASSES
@@ -258,23 +258,21 @@ impl Tier0Allocator {
     pub fn new(num_cpus: usize) -> Result<Self> {
         let mut caches = Vec::with_capacity(num_cpus);
 
-        for cpu in 0..num_cpus {
-            let mut cpu_caches = Vec::with_capacity(6); // 6 size classes
-
-            cpu_caches.push(CpuSlabCache::new(SizeClass::Bytes8));
-            cpu_caches.push(CpuSlabCache::new(SizeClass::Bytes16));
-            cpu_caches.push(CpuSlabCache::new(SizeClass::Bytes24));
-            cpu_caches.push(CpuSlabCache::new(SizeClass::Bytes32));
-            cpu_caches.push(CpuSlabCache::new(SizeClass::Bytes48));
-            cpu_caches.push(CpuSlabCache::new(SizeClass::Bytes64));
+        for _cpu in 0..num_cpus {
+            // 6 size classes
+            let cpu_caches = vec![
+                CpuSlabCache::new(SizeClass::Bytes8),
+                CpuSlabCache::new(SizeClass::Bytes16),
+                CpuSlabCache::new(SizeClass::Bytes24),
+                CpuSlabCache::new(SizeClass::Bytes32),
+                CpuSlabCache::new(SizeClass::Bytes48),
+                CpuSlabCache::new(SizeClass::Bytes64),
+            ];
 
             caches.push(cpu_caches);
         }
 
-        Ok(Tier0Allocator {
-            caches,
-            num_cpus,
-        })
+        Ok(Tier0Allocator { caches, num_cpus })
     }
 
     /// Allocate from Tier 0
@@ -343,10 +341,8 @@ pub struct CpuContext {
 
 impl CpuContext {
     pub fn set(cpu_id: usize) {
-        TIER0_CPU_CONTEXT.with(|ctx| {
-            unsafe {
-                (*ctx.get()).cpu_id = cpu_id;
-            }
+        TIER0_CPU_CONTEXT.with(|ctx| unsafe {
+            (*ctx.get()).cpu_id = cpu_id;
         });
     }
 
@@ -500,7 +496,9 @@ mod tests {
         }
 
         // Should be able to allocate again
-        let ptr = allocator.allocate(32).expect("Allocation after deallocation failed");
+        let ptr = allocator
+            .allocate(32)
+            .expect("Allocation after deallocation failed");
         assert!(!ptr.is_null());
     }
 

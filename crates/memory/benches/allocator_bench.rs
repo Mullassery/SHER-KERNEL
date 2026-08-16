@@ -5,7 +5,7 @@
 // This file contains the benchmark harness for testing allocation performance
 // against Linux baselines and measuring improvement targets.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::alloc::{alloc, dealloc, Layout};
 use std::time::Instant;
 
@@ -88,11 +88,7 @@ fn benchmark_deallocation_latency(c: &mut Criterion) {
 fn benchmark_alloc_free_cycle(c: &mut Criterion) {
     let mut group = c.benchmark_group("alloc_free_cycle");
 
-    let test_sizes = vec![
-        ("64B", 64),
-        ("1KB", 1024),
-        ("64KB", 65536),
-    ];
+    let test_sizes = vec![("64B", 64), ("1KB", 1024), ("64KB", 65536)];
 
     for (name, size) in test_sizes {
         group.bench_with_input(BenchmarkId::from_parameter(name), &size, |b, &size| {
@@ -138,7 +134,7 @@ fn benchmark_fragmentation(c: &mut Criterion) {
 
             // Allocate varied sizes
             for i in 0..1000 {
-                let size = 64 + (i % 256) * 8;  // Varied sizes to induce fragmentation
+                let size = 64 + (i % 256) * 8; // Varied sizes to induce fragmentation
                 let layout = Layout::from_size_align(size, 8).unwrap();
                 unsafe {
                     ptrs.push((alloc(layout), layout));
@@ -183,11 +179,7 @@ fn benchmark_contention_single_size_class(c: &mut Criterion) {
 fn benchmark_large_allocations(c: &mut Criterion) {
     let mut group = c.benchmark_group("large_allocations");
 
-    let test_sizes = vec![
-        ("256KB", 262144),
-        ("1MB", 1048576),
-        ("16MB", 16777216),
-    ];
+    let test_sizes = vec![("256KB", 262144), ("1MB", 1048576), ("16MB", 16777216)];
 
     for (name, size) in test_sizes {
         group.bench_with_input(BenchmarkId::from_parameter(name), &size, |b, &size| {
@@ -215,7 +207,8 @@ fn benchmark_allocation_throughput(c: &mut Criterion) {
             let start = Instant::now();
             let mut count = 0;
 
-            while start.elapsed().as_secs_f64() < 0.1 {  // 100ms test
+            while start.elapsed().as_secs_f64() < 0.1 {
+                // 100ms test
                 unsafe {
                     let ptr = alloc(layout);
                     dealloc(ptr, layout);

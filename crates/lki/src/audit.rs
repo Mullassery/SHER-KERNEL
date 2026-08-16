@@ -1,8 +1,8 @@
 // SHER LKI: Audit Logging
 // Complete audit trail of all Linux API translations
 
-use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
+use sher_common::ObjectId;
 use std::collections::VecDeque;
 
 // ============================================================================
@@ -115,12 +115,18 @@ impl AuditLog {
 
     /// Get entries by driver
     pub fn entries_by_driver(&self, driver_id: ObjectId) -> Vec<&AuditEntry> {
-        self.entries.iter().filter(|e| e.driver_id == driver_id).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.driver_id == driver_id)
+            .collect()
     }
 
     /// Get entries by API
     pub fn entries_by_api(&self, api_name: &str) -> Vec<&AuditEntry> {
-        self.entries.iter().filter(|e| e.api_name == api_name).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.api_name == api_name)
+            .collect()
     }
 
     /// Get recent entries
@@ -162,7 +168,8 @@ impl AuditLog {
             error_count: self.error_count,
             critical_count: self.critical_count,
             error_rate: if self.total_entries > 0 {
-                ((self.error_count + self.critical_count) as f64 / self.total_entries as f64) * 100.0
+                ((self.error_count + self.critical_count) as f64 / self.total_entries as f64)
+                    * 100.0
             } else {
                 0.0
             },
@@ -180,7 +187,8 @@ impl AuditLog {
         if entries.is_empty() {
             0
         } else {
-            (entries.iter().map(|e| e.duration_us as u64).sum::<u64>() / entries.len() as u64) as u32
+            (entries.iter().map(|e| e.duration_us as u64).sum::<u64>() / entries.len() as u64)
+                as u32
         }
     }
 

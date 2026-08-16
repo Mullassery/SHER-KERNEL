@@ -19,15 +19,11 @@ fn benchmark_kmalloc_sizes(c: &mut Criterion) {
     lki.initialize().unwrap();
 
     for size in [256, 1024, 4096, 8192].iter() {
-        group.bench_with_input(
-            format!("kmalloc_{}", size),
-            size,
-            |b, &size| {
-                b.iter(|| {
-                    let _ = lki.kmalloc(black_box(size), black_box(0));
-                })
-            },
-        );
+        group.bench_with_input(format!("kmalloc_{}", size), size, |b, &size| {
+            b.iter(|| {
+                let _ = lki.kmalloc(black_box(size), black_box(0));
+            })
+        });
     }
     group.finish();
 }

@@ -1,6 +1,5 @@
-use sher_common::{Capability, PermissionTier};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use sher_common::{Capability, PermissionTier};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,5 +68,72 @@ impl CapabilitySet {
 
     pub fn cleanup_expired(&mut self) {
         self.grants.retain(|g| g.is_valid());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_grant_is_valid_and_has_future_expiry() {
+        let grant = CapabilityGrant::new(Capability::Read, PermissionTier::Low);
+        assert!(grant.is_valid());
+        assert!(grant.expires_at.unwrap() > grant.granted_at);
+    }
+
+    #[test]
+    fn expired_grant_is_invalid() {
+        let mut grant = CapabilityGrant::new(Capability::Write, PermissionTier::Critical);
+        grant.expires_at = Some(0); // far in the past
+        assert!(!grant.is_valid());
+    }
+
+    #[test]
+    fn tier_durations_are_time_bounded_not_permanent() {
+        for tier in [
+            PermissionTier::Low,
+            PermissionTier::Medium,
+            PermissionTier::High,
+            PermissionTier::Critical,
+        ] {
+            let grant = CapabilityGrant::new(Capability::Admin, tier);
+            assert!(
+                grant.expires_at.is_some(),
+                "capability grants must always expire, tier {:?} did not",
+                tier
+            );
+        }
+    }
+
+    #[test]
+    fn capability_set_grant_and_revoke() {
+        let mut set = CapabilitySet::default();
+        assert!(!set.has_capability(Capability::NetworkAccess));
+
+        set.grant(Capability::NetworkAccess, PermissionTier::Medium);
+        assert!(set.has_capability(Capability::NetworkAccess));
+        assert!(!set.has_capability(Capability::Admin));
+
+        set.revoke(Capability::NetworkAccess);
+        assert!(!set.has_capability(Capability::NetworkAccess));
+    }
+
+    #[test]
+    fn cleanup_expired_removes_only_expired_grants() {
+        let mut set = CapabilitySet::default();
+        set.grant(Capability::Read, PermissionTier::Low);
+        set.grants.push(CapabilityGrant {
+            capability: Capability::Write,
+            tier: PermissionTier::Low,
+            granted_at: 0,
+            expires_at: Some(1),
+        });
+
+        assert_eq!(set.grants.len(), 2);
+        set.cleanup_expired();
+        assert_eq!(set.grants.len(), 1);
+        assert!(set.has_capability(Capability::Read));
+        assert!(!set.has_capability(Capability::Write));
     }
 }

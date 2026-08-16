@@ -1,6 +1,5 @@
-use sher_kernel::{SherKernel, KernelConfig};
+use sher_kernel::{KernelConfig, SherKernel};
 use tracing::info;
-use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

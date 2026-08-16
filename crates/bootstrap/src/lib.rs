@@ -1,5 +1,13 @@
 //! SHER Bootstrap - Stage 0 (< 50ms)
 //!
+//! **Userspace simulation**: this models the *sequencing* of a Stage 0 boot
+//! (CPU bring-up -> memory map -> MMU -> heap -> integrity check) as a
+//! userspace process would run it for testing purposes. It does not, and
+//! cannot, perform real ring-0 CPU/MMU bring-up — see each submodule's doc
+//! comment for exactly what's simulated vs. what real bookkeeping logic
+//! backs it (e.g. `heap::HeapState` bump allocation, `mmu::setup`'s
+//! overlap validation, `verification`'s checksum check).
+//!
 //! Absolute minimum to bring the system to a state where the kernel can run:
 //! - CPU initialization
 //! - Memory map discovery
@@ -11,11 +19,12 @@
 //! Nothing else. No services. No drivers. No compatibility layers.
 
 pub mod cpu;
+pub mod heap;
 pub mod memory_map;
 pub mod mmu;
-pub mod heap;
 pub mod verification;
 
+use heap::HeapState;
 use sher_common::Result;
 use tracing::info;
 
@@ -36,6 +45,7 @@ impl Default for BootstrapConfig {
 pub struct Bootstrap {
     config: BootstrapConfig,
     boot_time_ms: u64,
+    heap: Option<HeapState>,
 }
 
 impl Bootstrap {
@@ -43,6 +53,7 @@ impl Bootstrap {
         Self {
             config,
             boot_time_ms: 0,
+            heap: None,
         }
     }
 
@@ -59,7 +70,7 @@ impl Bootstrap {
         mmu::setup(&mem_map)?;
 
         info!("Stage 0: Kernel Heap Allocation");
-        heap::initialize(self.config.kernel_heap_size)?;
+        self.heap = Some(heap::initialize(self.config.kernel_heap_size)?);
 
         if self.config.verify_root_image {
             info!("Stage 0: Immutable Root Verification");
@@ -74,5 +85,31 @@ impl Bootstrap {
 
     pub fn boot_time_ms(&self) -> u64 {
         self.boot_time_ms
+    }
+
+    pub fn heap(&self) -> Option<&HeapState> {
+        self.heap.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn execute_completes_and_records_heap_state() {
+        let mut bootstrap = Bootstrap::new(BootstrapConfig::default());
+        bootstrap.execute().await.unwrap();
+        assert!(bootstrap.heap().is_some());
+        assert_eq!(bootstrap.heap().unwrap().capacity, 2 * 1024 * 1024);
+    }
+
+    #[tokio::test]
+    async fn execute_skips_verification_when_disabled() {
+        let mut bootstrap = Bootstrap::new(BootstrapConfig {
+            kernel_heap_size: 4096,
+            verify_root_image: false,
+        });
+        assert!(bootstrap.execute().await.is_ok());
     }
 }

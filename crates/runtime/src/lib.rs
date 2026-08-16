@@ -45,13 +45,68 @@ impl ServiceRegistry {
             self.loaded.push(name.to_string());
             Ok(())
         } else {
-            Err(sher_common::Error::Unknown(format!("Service not found: {}", name)))
+            Err(sher_common::Error::Unknown(format!(
+                "Service not found: {}",
+                name
+            )))
         }
+    }
+
+    pub fn is_loaded(&self, name: &str) -> bool {
+        self.loaded.iter().any(|s| s == name)
+    }
+
+    pub fn loaded_services(&self) -> &[String] {
+        &self.loaded
+    }
+
+    pub fn is_registered(&self, name: &str) -> bool {
+        self.services.contains_key(name)
     }
 }
 
 impl Default for ServiceRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn descriptor(name: &str, lazy: bool) -> ServiceDescriptor {
+        ServiceDescriptor {
+            name: name.to_string(),
+            required_for: Vec::new(),
+            lazy,
+        }
+    }
+
+    #[test]
+    fn loading_unregistered_service_errors() {
+        let mut registry = ServiceRegistry::new();
+        assert!(registry.load_service("storage").is_err());
+    }
+
+    #[test]
+    fn registered_service_loads_and_is_tracked() {
+        let mut registry = ServiceRegistry::new();
+        registry.register(descriptor("networking", true));
+        assert!(registry.is_registered("networking"));
+        assert!(!registry.is_loaded("networking"));
+
+        registry.load_service("networking").unwrap();
+        assert!(registry.is_loaded("networking"));
+        assert_eq!(registry.loaded_services(), &["networking".to_string()]);
+    }
+
+    #[test]
+    fn loading_twice_is_idempotent() {
+        let mut registry = ServiceRegistry::new();
+        registry.register(descriptor("gpu", true));
+        registry.load_service("gpu").unwrap();
+        registry.load_service("gpu").unwrap();
+        assert_eq!(registry.loaded_services().len(), 1);
     }
 }

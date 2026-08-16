@@ -26,3 +26,15 @@ impl std::fmt::Display for NetworkProtocol {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_labels_are_human_readable() {
+        assert_eq!(NetworkProtocol::WiFi.to_string(), "Wi-Fi");
+        assert_eq!(NetworkProtocol::CanBus.to_string(), "CAN Bus");
+        assert_eq!(NetworkProtocol::TimeSensitiveNetworking.to_string(), "TSN");
+    }
+}

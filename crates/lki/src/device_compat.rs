@@ -1,17 +1,9 @@
-use sher_common::{ObjectId, Result};
 use serde::{Deserialize, Serialize};
+use sher_common::{ObjectId, Result};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LinuxDeviceApi {
     pub registered_drivers: Vec<ObjectId>,
-}
-
-impl Default for LinuxDeviceApi {
-    fn default() -> Self {
-        Self {
-            registered_drivers: Vec::new(),
-        }
-    }
 }
 
 impl LinuxDeviceApi {

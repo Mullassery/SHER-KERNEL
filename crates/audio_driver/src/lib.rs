@@ -8,8 +8,8 @@
 //! - Mixer operations and channel routing
 //! - Audio format conversion
 
-use std::collections::HashMap;
 use sher_common::{ObjectId, Result};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AudioFormat {
@@ -76,14 +76,14 @@ impl AudioDriver {
     }
 
     pub fn register_device(&mut self, device: AudioDevice) -> Result<()> {
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let volume = VolumeControl {
-            device_id: device_id.clone(),
+            device_id,
             left_volume: 100,
             right_volume: 100,
             is_muted: false,
         };
-        self.devices.insert(device_id.clone(), device);
+        self.devices.insert(device_id, device);
         self.volumes.insert(device_id, volume);
         Ok(())
     }
@@ -119,7 +119,9 @@ impl AudioDriver {
     pub fn set_sample_rate(&mut self, device_id: &ObjectId, rate: u32) -> Result<()> {
         if let Some(device) = self.devices.get_mut(device_id) {
             if !device.sample_rates.contains(&rate) {
-                return Err(sher_common::Error::Device("Unsupported sample rate".to_string()));
+                return Err(sher_common::Error::Device(
+                    "Unsupported sample rate".to_string(),
+                ));
             }
             device.current_sample_rate = rate;
             Ok(())
@@ -151,7 +153,7 @@ impl AudioDriver {
                 available_frames: frames,
             };
 
-            self.buffers.insert(buffer.id.clone(), buffer.clone());
+            self.buffers.insert(buffer.id, buffer.clone());
             Ok(buffer)
         } else {
             Err(sher_common::Error::Device("Device not found".to_string()))
@@ -197,7 +199,9 @@ impl AudioDriver {
 
     pub fn set_volume(&mut self, device_id: &ObjectId, left: u32, right: u32) -> Result<()> {
         if left > 100 || right > 100 {
-            return Err(sher_common::Error::Device("Volume out of range".to_string()));
+            return Err(sher_common::Error::Device(
+                "Volume out of range".to_string(),
+            ));
         }
 
         if let Some(volume) = self.volumes.get_mut(device_id) {

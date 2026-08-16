@@ -1,8 +1,8 @@
 // SHER Driver Runtime: Network Isolation
 // Network access control and bandwidth management for drivers
 
-use sher_common::{ObjectId, Result, Error};
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -41,7 +41,7 @@ impl NetworkPolicy {
             driver_id,
             allow_network: true,
             rules: Vec::new(),
-            bandwidth_limit_kbps: 10000,  // 10Mbps default
+            bandwidth_limit_kbps: 10000, // 10Mbps default
             max_connections: 32,
         }
     }
@@ -57,10 +57,8 @@ impl NetworkPolicy {
 
         // Check rules
         for rule in &self.rules {
-            if rule.protocol == protocol {
-                if rule.allowed {
-                    return Ok(true);
-                }
+            if rule.protocol == protocol && rule.allowed {
+                return Ok(true);
             }
         }
 
@@ -85,7 +83,7 @@ pub struct BandwidthMetrics {
 #[derive(Debug, Clone, Default)]
 pub struct BandwidthThrottler {
     pub metrics: HashMap<ObjectId, BandwidthMetrics>,
-    pub limits: HashMap<ObjectId, u32>,  // kbps
+    pub limits: HashMap<ObjectId, u32>, // kbps
 }
 
 impl BandwidthThrottler {
@@ -116,7 +114,9 @@ impl BandwidthThrottler {
         };
 
         if limit_exceeded {
-            return Err(Error::AllocationFailed("Bandwidth limit exceeded".to_string()));
+            return Err(Error::AllocationFailed(
+                "Bandwidth limit exceeded".to_string(),
+            ));
         }
 
         // Record traffic
@@ -174,11 +174,19 @@ impl NetworkIsolationManager {
         self.active_connections.insert(driver_id, Vec::new());
     }
 
-    pub fn check_connection(&self, driver_id: ObjectId, protocol: IpProtocol, dst: &str) -> Result<bool> {
+    pub fn check_connection(
+        &self,
+        driver_id: ObjectId,
+        protocol: IpProtocol,
+        dst: &str,
+    ) -> Result<bool> {
         if let Some(policy) = self.policies.get(&driver_id) {
             policy.check_connection(protocol, dst)
         } else {
-            Err(Error::AllocationFailed(format!("Driver {} not found", driver_id)))
+            Err(Error::AllocationFailed(format!(
+                "Driver {} not found",
+                driver_id
+            )))
         }
     }
 
@@ -186,15 +194,22 @@ impl NetworkIsolationManager {
         if let Some(policy) = self.policies.get(&driver_id) {
             if let Some(conns) = self.active_connections.get_mut(&driver_id) {
                 if conns.len() >= policy.max_connections as usize {
-                    return Err(Error::AllocationFailed("Max connections exceeded".to_string()));
+                    return Err(Error::AllocationFailed(
+                        "Max connections exceeded".to_string(),
+                    ));
                 }
                 conns.push(connection_id);
                 Ok(())
             } else {
-                Err(Error::AllocationFailed("No connection list for driver".to_string()))
+                Err(Error::AllocationFailed(
+                    "No connection list for driver".to_string(),
+                ))
             }
         } else {
-            Err(Error::AllocationFailed(format!("Driver {} not found", driver_id)))
+            Err(Error::AllocationFailed(format!(
+                "Driver {} not found",
+                driver_id
+            )))
         }
     }
 
@@ -228,7 +243,7 @@ impl NetworkIsolationManager {
 pub struct DeviceIsolation {
     pub driver_id: ObjectId,
     pub device_ids: Vec<ObjectId>,
-    pub io_ports: Vec<(u16, u16)>,  // (start, end) ranges
+    pub io_ports: Vec<(u16, u16)>, // (start, end) ranges
 }
 
 #[derive(Debug, Clone, Default)]
@@ -255,7 +270,10 @@ impl DeviceIsolationManager {
 
     pub fn can_access_io_port(&self, driver_id: ObjectId, port: u16) -> bool {
         if let Some(isolation) = self.isolations.get(&driver_id) {
-            isolation.io_ports.iter().any(|(start, end)| port >= *start && port <= *end)
+            isolation
+                .io_ports
+                .iter()
+                .any(|(start, end)| port >= *start && port <= *end)
         } else {
             false
         }
@@ -265,7 +283,10 @@ impl DeviceIsolationManager {
         if self.can_access_device(driver_id, device_id) {
             Ok(())
         } else {
-            Err(Error::AllocationFailed(format!("Access to device {} denied", device_id)))
+            Err(Error::AllocationFailed(format!(
+                "Access to device {} denied",
+                device_id
+            )))
         }
     }
 
@@ -273,7 +294,10 @@ impl DeviceIsolationManager {
         if self.can_access_io_port(driver_id, port) {
             Ok(())
         } else {
-            Err(Error::AllocationFailed(format!("Access to I/O port {} denied", port)))
+            Err(Error::AllocationFailed(format!(
+                "Access to I/O port {} denied",
+                port
+            )))
         }
     }
 

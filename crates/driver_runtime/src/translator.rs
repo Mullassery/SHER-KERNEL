@@ -199,7 +199,12 @@ impl TranslationEngine {
         engine
     }
 
-    pub fn add_mapping(&mut self, linux_api: LinuxApiCall, sher: SherPrimitive, validation: ValidationLevel) {
+    pub fn add_mapping(
+        &mut self,
+        linux_api: LinuxApiCall,
+        sher: SherPrimitive,
+        validation: ValidationLevel,
+    ) {
         self.mappings.insert(
             linux_api.as_str().to_string(),
             (sher.as_str().to_string(), validation),
@@ -207,15 +212,11 @@ impl TranslationEngine {
     }
 
     pub fn translate(&self, linux_api: &str) -> Option<&String> {
-        self.mappings
-            .get(linux_api)
-            .map(|(sher, _)| sher)
+        self.mappings.get(linux_api).map(|(sher, _)| sher)
     }
 
     pub fn get_validation_level(&self, linux_api: &str) -> Option<ValidationLevel> {
-        self.mappings
-            .get(linux_api)
-            .map(|(_, level)| *level)
+        self.mappings.get(linux_api).map(|(_, level)| *level)
     }
 
     pub fn record_call(&mut self, api: &str) {

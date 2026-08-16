@@ -41,7 +41,7 @@ impl WaylandTransport {
     }
 
     pub fn connect_client(&mut self, client: WaylandClient) -> Result<()> {
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let mut client = client;
         client.is_connected = true;
         self.clients.insert(client_id, client);
@@ -72,7 +72,7 @@ impl WaylandTransport {
             size_bytes,
         };
 
-        self.buffers.insert(buffer.id.clone(), buffer.clone());
+        self.buffers.insert(buffer.id, buffer.clone());
         Ok(buffer)
     }
 
@@ -134,7 +134,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = transport.connect_client(client);
         assert_eq!(transport.client_count(), 1);
 

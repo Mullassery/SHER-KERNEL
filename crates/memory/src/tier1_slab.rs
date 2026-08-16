@@ -5,10 +5,9 @@
 // Phase 1 Week 2 Implementation (Days 3-4)
 // Status: Tier 1 Allocator - Per-Socket Slab Caching
 
-use sher_common::{Result, Error};
-use std::sync::Mutex;
-use std::cell::UnsafeCell;
+use sher_common::{Error, Result};
 use std::alloc::{alloc, dealloc, Layout};
+use std::sync::Mutex;
 
 // ============================================================================
 // TIER 1 SIZE CLASSES
@@ -19,19 +18,19 @@ use std::alloc::{alloc, dealloc, Layout};
 /// 13 classes with minimal internal fragmentation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SizeClass {
-    Bytes80 = 0,      // 80B  - 50 per page
-    Bytes128 = 1,     // 128B - 32 per page
-    Bytes192 = 2,     // 192B - 21 per page
-    Bytes256 = 3,     // 256B - 16 per page
-    Bytes384 = 4,     // 384B - 10 per page
-    Bytes512 = 5,     // 512B - 8 per page
-    Bytes1K = 6,      // 1KB  - 4 per page
-    Bytes2K = 7,      // 2KB  - 2 per page
-    Bytes4K = 8,      // 4KB  - 1 per page (exactly)
-    Bytes8K = 9,      // 8KB  - needs 2 pages
-    Bytes16K = 10,    // 16KB - needs 4 pages
-    Bytes32K = 11,    // 32KB - needs 8 pages
-    Bytes64K = 12,    // 64KB - needs 16 pages
+    Bytes80 = 0,   // 80B  - 50 per page
+    Bytes128 = 1,  // 128B - 32 per page
+    Bytes192 = 2,  // 192B - 21 per page
+    Bytes256 = 3,  // 256B - 16 per page
+    Bytes384 = 4,  // 384B - 10 per page
+    Bytes512 = 5,  // 512B - 8 per page
+    Bytes1K = 6,   // 1KB  - 4 per page
+    Bytes2K = 7,   // 2KB  - 2 per page
+    Bytes4K = 8,   // 4KB  - 1 per page (exactly)
+    Bytes8K = 9,   // 8KB  - needs 2 pages
+    Bytes16K = 10, // 16KB - needs 4 pages
+    Bytes32K = 11, // 32KB - needs 8 pages
+    Bytes64K = 12, // 64KB - needs 16 pages
 }
 
 impl SizeClass {
@@ -81,7 +80,7 @@ impl SizeClass {
     }
 
     pub fn pages_needed(&self) -> usize {
-        (self.actual_size() + 4095) / 4096
+        self.actual_size().div_ceil(4096)
     }
 }
 
@@ -167,15 +166,21 @@ impl SlabPage {
         }
     }
 
-    /// Deallocate an object back to this slab
-    pub fn deallocate(&mut self, ptr: *mut u8) -> bool {
+    /// Deallocate an object back to this slab.
+    ///
+    /// # Safety
+    /// `ptr` must have been returned by a previous call to
+    /// [`SlabPage::allocate`] on this same `SlabPage` (or be null-adjacent
+    /// enough to safely fail the containment check) — `offset_from`
+    /// requires both pointers to be derived from the same allocation.
+    pub unsafe fn deallocate(&mut self, ptr: *mut u8) -> bool {
         if self.available_count >= self.total_objects {
             return false; // Slab is full
         }
 
         let obj_size = self.size_class.actual_size();
         unsafe {
-            let offset = ptr.offset_from(self.vaddr) as isize;
+            let offset = ptr.offset_from(self.vaddr);
 
             // Check if pointer is within this slab
             if offset < 0 || offset as usize >= (self.total_objects * obj_size) {
@@ -300,11 +305,16 @@ impl SocketSlabCache {
         Ok(ptr)
     }
 
-    /// Deallocate back to this socket cache
-    pub fn deallocate(&mut self, ptr: *mut u8) -> bool {
+    /// Deallocate back to this socket cache.
+    ///
+    /// # Safety
+    /// `ptr` must have been obtained from a previous `allocate()` call on
+    /// this same `SocketSlabCache` (propagates `SlabPage::deallocate`'s
+    /// safety contract).
+    pub unsafe fn deallocate(&mut self, ptr: *mut u8) -> bool {
         // Find the slab containing this object
         for slab in &mut self.partial_slabs {
-            if slab.deallocate(ptr) {
+            if unsafe { slab.deallocate(ptr) } {
                 self.stats.deallocations += 1;
                 return true;
             }
@@ -312,7 +322,7 @@ impl SocketSlabCache {
 
         // Check full slabs too (object might have been deallocated)
         for slab in &mut self.full_slabs {
-            if slab.deallocate(ptr) {
+            if unsafe { slab.deallocate(ptr) } {
                 self.stats.deallocations += 1;
                 return true;
             }
@@ -374,21 +384,22 @@ impl Tier1Allocator {
         let mut caches = Vec::with_capacity(num_sockets);
 
         for _socket in 0..num_sockets {
-            let mut socket_caches = Vec::with_capacity(13); // 13 size classes
-
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes80)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes128)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes192)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes256)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes384)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes512)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes1K)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes2K)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes4K)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes8K)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes16K)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes32K)));
-            socket_caches.push(Mutex::new(SocketSlabCache::new(SizeClass::Bytes64K)));
+            // 13 size classes
+            let socket_caches = vec![
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes80)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes128)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes192)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes256)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes384)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes512)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes1K)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes2K)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes4K)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes8K)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes16K)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes32K)),
+                Mutex::new(SocketSlabCache::new(SizeClass::Bytes64K)),
+            ];
 
             caches.push(socket_caches);
         }
@@ -401,20 +412,25 @@ impl Tier1Allocator {
 
     /// Allocate from Tier 1 (slow path - involves spinlock)
     pub fn allocate(&self, size: usize, socket_id: usize) -> Result<*mut u8> {
-        let size_class = SizeClass::from_size(size)
-            .ok_or(Error::AllocationFailed("Size out of Tier 1 range".to_string()))?;
+        let size_class = SizeClass::from_size(size).ok_or(Error::AllocationFailed(
+            "Size out of Tier 1 range".to_string(),
+        ))?;
 
         let socket_id = socket_id % self.num_sockets;
         let cache = &self.caches[socket_id][size_class.as_index()];
-        let mut cache_guard = cache.lock().map_err(|_| {
-            Error::AllocationFailed("Failed to acquire cache lock".to_string())
-        })?;
+        let mut cache_guard = cache
+            .lock()
+            .map_err(|_| Error::AllocationFailed("Failed to acquire cache lock".to_string()))?;
 
         cache_guard.allocate()
     }
 
-    /// Deallocate to Tier 1
-    pub fn deallocate(&self, ptr: *mut u8, size: usize, socket_id: usize) -> bool {
+    /// Deallocate to Tier 1.
+    ///
+    /// # Safety
+    /// `ptr` must have been obtained from a previous `allocate(size, ..)`
+    /// call on this same `Tier1Allocator` with a matching `size`.
+    pub unsafe fn deallocate(&self, ptr: *mut u8, size: usize, socket_id: usize) -> bool {
         let size_class = match SizeClass::from_size(size) {
             Some(sc) => sc,
             None => return false,
@@ -424,7 +440,7 @@ impl Tier1Allocator {
         let cache = &self.caches[socket_id][size_class.as_index()];
 
         if let Ok(mut cache_guard) = cache.lock() {
-            cache_guard.deallocate(ptr)
+            unsafe { cache_guard.deallocate(ptr) }
         } else {
             false
         }
@@ -535,7 +551,7 @@ mod tests {
         let ptr1 = slab.allocate().expect("First allocation failed");
         assert_eq!(slab.allocated_count, 1);
 
-        assert!(slab.deallocate(ptr1));
+        assert!(unsafe { slab.deallocate(ptr1) });
         assert_eq!(slab.allocated_count, 0);
         assert!(slab.is_empty());
     }
@@ -564,7 +580,7 @@ mod tests {
         let mut cache = SocketSlabCache::new(SizeClass::Bytes256);
 
         let ptr = cache.allocate().expect("Allocation failed");
-        assert!(cache.deallocate(ptr));
+        assert!(unsafe { cache.deallocate(ptr) });
 
         let ptr2 = cache.allocate().expect("Second allocation failed");
         assert_eq!(ptr, ptr2); // Should reuse same slot
@@ -591,9 +607,11 @@ mod tests {
         let ptr1 = allocator.allocate(256, 0).expect("First allocation failed");
         assert!(!ptr1.is_null());
 
-        assert!(allocator.deallocate(ptr1, 256, 0));
+        assert!(unsafe { allocator.deallocate(ptr1, 256, 0) });
 
-        let ptr2 = allocator.allocate(256, 0).expect("Second allocation failed");
+        let ptr2 = allocator
+            .allocate(256, 0)
+            .expect("Second allocation failed");
         assert_eq!(ptr1, ptr2);
     }
 
@@ -618,15 +636,19 @@ mod tests {
     fn test_tier1_allocator_multiple_sockets() {
         let allocator = Tier1Allocator::new(2).expect("Failed to create allocator");
 
-        let ptr_s0 = allocator.allocate(256, 0).expect("Socket 0 allocation failed");
-        let ptr_s1 = allocator.allocate(256, 1).expect("Socket 1 allocation failed");
+        let ptr_s0 = allocator
+            .allocate(256, 0)
+            .expect("Socket 0 allocation failed");
+        let ptr_s1 = allocator
+            .allocate(256, 1)
+            .expect("Socket 1 allocation failed");
 
         // Objects should be different (different slabs on different sockets)
         assert_ne!(ptr_s0, ptr_s1);
 
         // Deallocate from each socket
-        assert!(allocator.deallocate(ptr_s0, 256, 0));
-        assert!(allocator.deallocate(ptr_s1, 256, 1));
+        assert!(unsafe { allocator.deallocate(ptr_s0, 256, 0) });
+        assert!(unsafe { allocator.deallocate(ptr_s1, 256, 1) });
     }
 
     #[test]
@@ -672,7 +694,9 @@ mod tests {
         let allocator = Tier1Allocator::new(1).expect("Failed to create allocator");
 
         let ptr = allocator.allocate(256, 0).expect("Allocation failed");
-        allocator.deallocate(ptr, 256, 0);
+        unsafe {
+            allocator.deallocate(ptr, 256, 0);
+        }
 
         allocator.shrink_all().expect("Shrink failed");
     }

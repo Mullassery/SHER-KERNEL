@@ -8,8 +8,8 @@
 //! - Hot-plug detection
 //! - GPU memory management
 
-use std::collections::HashMap;
 use sher_common::{ObjectId, Result};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConnectorType {
@@ -95,7 +95,7 @@ impl GPUDriver {
     }
 
     pub fn register_connector(&mut self, connector: Connector) -> Result<()> {
-        self.connectors.insert(connector.id.clone(), connector);
+        self.connectors.insert(connector.id, connector);
         Ok(())
     }
 
@@ -114,11 +114,13 @@ impl GPUDriver {
             }
             connector.current_mode = Some(mode);
             if self.primary_display.is_none() {
-                self.primary_display = Some(connector_id.clone());
+                self.primary_display = Some(*connector_id);
             }
             Ok(())
         } else {
-            Err(sher_common::Error::Device("Connector not found".to_string()))
+            Err(sher_common::Error::Device(
+                "Connector not found".to_string(),
+            ))
         }
     }
 
@@ -141,7 +143,8 @@ impl GPUDriver {
         self.gpu_memory.available_bytes -= size_bytes;
         self.gpu_memory.allocated_bytes += size_bytes;
 
-        self.framebuffers.insert(framebuffer.id.clone(), framebuffer.clone());
+        self.framebuffers
+            .insert(framebuffer.id, framebuffer.clone());
 
         Ok(framebuffer)
     }
@@ -156,16 +159,22 @@ impl GPUDriver {
             self.gpu_memory.allocated_bytes -= fb.size_bytes;
             Ok(())
         } else {
-            Err(sher_common::Error::Device("Framebuffer not found".to_string()))
+            Err(sher_common::Error::Device(
+                "Framebuffer not found".to_string(),
+            ))
         }
     }
 
     pub fn page_flip(&self, connector_id: &ObjectId, fb_id: &ObjectId) -> Result<()> {
         if !self.connectors.contains_key(connector_id) {
-            return Err(sher_common::Error::Device("Connector not found".to_string()));
+            return Err(sher_common::Error::Device(
+                "Connector not found".to_string(),
+            ));
         }
         if !self.framebuffers.contains_key(fb_id) {
-            return Err(sher_common::Error::Device("Framebuffer not found".to_string()));
+            return Err(sher_common::Error::Device(
+                "Framebuffer not found".to_string(),
+            ));
         }
         Ok(())
     }
@@ -183,12 +192,14 @@ impl GPUDriver {
             };
             Ok(())
         } else {
-            Err(sher_common::Error::Device("Connector not found".to_string()))
+            Err(sher_common::Error::Device(
+                "Connector not found".to_string(),
+            ))
         }
     }
 
     pub fn get_primary_display(&self) -> Option<ObjectId> {
-        self.primary_display.clone()
+        self.primary_display
     }
 
     pub fn connector_count(&self) -> usize {
@@ -284,7 +295,7 @@ mod tests {
             current_mode: None,
         };
 
-        let connector_id = connector.id.clone();
+        let connector_id = connector.id;
         let _ = driver.register_connector(connector);
 
         let result = driver.set_mode(&connector_id, mode);
@@ -307,7 +318,7 @@ mod tests {
             current_mode: None,
         };
 
-        let connector_id = connector.id.clone();
+        let connector_id = connector.id;
         let _ = driver.register_connector(connector);
 
         let unsupported_mode = DisplayMode {
@@ -381,7 +392,7 @@ mod tests {
             current_mode: None,
         };
 
-        let connector_id = connector.id.clone();
+        let connector_id = connector.id;
         let _ = driver.register_connector(connector);
 
         let fb = driver.allocate_framebuffer(1920, 1080).unwrap();
@@ -401,7 +412,7 @@ mod tests {
             current_mode: None,
         };
 
-        let connector_id = connector.id.clone();
+        let connector_id = connector.id;
         let _ = driver.register_connector(connector);
 
         let result = driver.detect_hotplug(&connector_id, false);
@@ -429,7 +440,7 @@ mod tests {
             current_mode: None,
         };
 
-        let connector_id = connector.id.clone();
+        let connector_id = connector.id;
         let _ = driver.register_connector(connector);
 
         assert!(driver.get_primary_display().is_none());

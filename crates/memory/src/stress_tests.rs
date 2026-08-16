@@ -116,7 +116,7 @@ pub fn stress_test_sequential(config: StressTestConfig) -> Result<StressTestResu
         // Periodically deallocate
         if cycle % 10 == 0 && !allocated_ptrs.is_empty() {
             let (ptr, size) = allocated_ptrs.remove(0);
-            if allocator.deallocate(ptr, size) {
+            if unsafe { allocator.deallocate(ptr, size) } {
                 result.total_deallocations += 1;
             } else {
                 result.deallocation_failures += 1;
@@ -130,9 +130,8 @@ pub fn stress_test_sequential(config: StressTestConfig) -> Result<StressTestResu
     }
 
     // Deallocate remaining
-    while !allocated_ptrs.is_empty() {
-        let (ptr, size) = allocated_ptrs.pop().unwrap();
-        if allocator.deallocate(ptr, size) {
+    while let Some((ptr, size)) = allocated_ptrs.pop() {
+        if unsafe { allocator.deallocate(ptr, size) } {
             result.total_deallocations += 1;
         } else {
             result.deallocation_failures += 1;
@@ -142,7 +141,7 @@ pub fn stress_test_sequential(config: StressTestConfig) -> Result<StressTestResu
 
     // Check if all deallocations successful
     result.passed =
-        result.memory_leak == false && result.allocation_failures == 0 && result.error.is_none();
+        !result.memory_leak && result.allocation_failures == 0 && result.error.is_none();
 
     Ok(result)
 }
@@ -186,7 +185,7 @@ pub fn stress_test_chaos(config: StressTestConfig) -> Result<StressTestResult> {
             let idx = (cycle / 7) % allocated_ptrs.len();
             let (ptr, size) = allocated_ptrs.remove(idx);
 
-            if allocator.deallocate(ptr, size) {
+            if unsafe { allocator.deallocate(ptr, size) } {
                 result.total_deallocations += 1;
             } else {
                 result.deallocation_failures += 1;
@@ -200,9 +199,8 @@ pub fn stress_test_chaos(config: StressTestConfig) -> Result<StressTestResult> {
     }
 
     // Cleanup
-    while !allocated_ptrs.is_empty() {
-        let (ptr, size) = allocated_ptrs.pop().unwrap();
-        if allocator.deallocate(ptr, size) {
+    while let Some((ptr, size)) = allocated_ptrs.pop() {
+        if unsafe { allocator.deallocate(ptr, size) } {
             result.total_deallocations += 1;
         } else {
             result.deallocation_failures += 1;
@@ -211,7 +209,7 @@ pub fn stress_test_chaos(config: StressTestConfig) -> Result<StressTestResult> {
     }
 
     result.passed =
-        result.memory_leak == false && result.allocation_failures == 0 && result.error.is_none();
+        !result.memory_leak && result.allocation_failures == 0 && result.error.is_none();
 
     Ok(result)
 }
@@ -251,9 +249,8 @@ pub fn stress_test_pressure(config: StressTestConfig) -> Result<StressTestResult
     }
 
     // Cleanup all
-    while !allocated_ptrs.is_empty() {
-        let (ptr, size) = allocated_ptrs.pop().unwrap();
-        if allocator.deallocate(ptr, size) {
+    while let Some((ptr, size)) = allocated_ptrs.pop() {
+        if unsafe { allocator.deallocate(ptr, size) } {
             result.total_deallocations += 1;
         } else {
             result.deallocation_failures += 1;
@@ -262,7 +259,7 @@ pub fn stress_test_pressure(config: StressTestConfig) -> Result<StressTestResult
     }
 
     result.passed =
-        result.memory_leak == false && result.allocation_failures == 0 && result.error.is_none();
+        !result.memory_leak && result.allocation_failures == 0 && result.error.is_none();
 
     Ok(result)
 }
@@ -296,7 +293,8 @@ pub fn stress_test_multithreaded(config: StressTestConfig) -> Result<StressTestR
             let mut ptrs = Vec::new();
 
             for cycle in 0..cycles_per_thread {
-                let size = cfg.min_size + ((thread_id * 1000 + cycle) % (cfg.max_size - cfg.min_size));
+                let size =
+                    cfg.min_size + ((thread_id * 1000 + cycle) % (cfg.max_size - cfg.min_size));
 
                 // Try to allocate
                 {
@@ -316,7 +314,7 @@ pub fn stress_test_multithreaded(config: StressTestConfig) -> Result<StressTestR
                 if cycle % 5 == 0 && !ptrs.is_empty() {
                     let (ptr, size) = ptrs.remove(0);
                     let mut alloc = allocator_clone.lock().unwrap();
-                    if alloc.deallocate(ptr, size) {
+                    if unsafe { alloc.deallocate(ptr, size) } {
                         local_deallocs += 1;
                     }
                 }
@@ -325,7 +323,9 @@ pub fn stress_test_multithreaded(config: StressTestConfig) -> Result<StressTestR
             // Cleanup
             for (ptr, size) in ptrs {
                 let mut alloc = allocator_clone.lock().unwrap();
-                alloc.deallocate(ptr, size);
+                unsafe {
+                    alloc.deallocate(ptr, size);
+                }
                 local_deallocs += 1;
             }
 
@@ -381,7 +381,7 @@ mod tests {
 
         let result = stress_test_sequential(config).expect("Stress test failed");
         assert!(result.passed);
-        assert_eq!(result.memory_leak, false);
+        assert!(!result.memory_leak);
         assert!(result.total_allocations > 0);
     }
 
@@ -398,7 +398,7 @@ mod tests {
 
         let result = stress_test_chaos(config).expect("Stress test failed");
         assert!(result.passed);
-        assert_eq!(result.memory_leak, false);
+        assert!(!result.memory_leak);
     }
 
     #[test]
@@ -414,7 +414,7 @@ mod tests {
 
         let result = stress_test_pressure(config).expect("Stress test failed");
         assert!(result.passed);
-        assert_eq!(result.memory_leak, false);
+        assert!(!result.memory_leak);
     }
 
     #[test]
@@ -446,7 +446,7 @@ mod tests {
 
         let result = stress_test_sequential(config).expect("Stress test failed");
         // Allow some allocation failures in stress test
-        assert_eq!(result.memory_leak, false);
+        assert!(!result.memory_leak);
         assert!(result.total_allocations > 50); // At least some allocations successful
     }
 
@@ -463,7 +463,7 @@ mod tests {
 
         let result = stress_test_sequential(config).expect("Stress test failed");
         // Large allocations may fail due to limited memory, that's ok
-        assert_eq!(result.memory_leak, false);
+        assert!(!result.memory_leak);
         assert!(result.total_allocations > 10); // At least some allocations successful
     }
 }

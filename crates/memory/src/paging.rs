@@ -27,3 +27,37 @@ impl PageTable {
         self.entries.get(&virtual_addr).copied()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unmapped_address_translates_to_none() {
+        let table = PageTable::new(4096);
+        assert_eq!(table.translate(0x1000), None);
+    }
+
+    #[test]
+    fn map_then_translate_round_trips() {
+        let mut table = PageTable::new(4096);
+        table.map(0x1000, 0x9000);
+        assert_eq!(table.translate(0x1000), Some(0x9000));
+    }
+
+    #[test]
+    fn unmap_removes_mapping() {
+        let mut table = PageTable::new(4096);
+        table.map(0x1000, 0x9000);
+        table.unmap(0x1000);
+        assert_eq!(table.translate(0x1000), None);
+    }
+
+    #[test]
+    fn remapping_overwrites_previous_translation() {
+        let mut table = PageTable::new(4096);
+        table.map(0x1000, 0x9000);
+        table.map(0x1000, 0xA000);
+        assert_eq!(table.translate(0x1000), Some(0xA000));
+    }
+}

@@ -6,16 +6,16 @@
 //! - What-if analysis
 //! - Performance testing
 
-use crate::event_log::{KernelEvent, EventType};
-use std::collections::HashMap;
+use crate::event_log::{EventType, KernelEvent};
 use sher_common::Result;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReplayMode {
-    RealTime,      // Replay at original timing
-    FastForward,   // Replay as fast as possible
-    StepWise,      // Step through one event at a time
-    Filtered,      // Replay only matching events
+    RealTime,    // Replay at original timing
+    FastForward, // Replay as fast as possible
+    StepWise,    // Step through one event at a time
+    Filtered,    // Replay only matching events
 }
 
 #[derive(Clone, Debug)]
@@ -26,12 +26,15 @@ pub struct ReplayStats {
     pub avg_event_latency_us: f64,
 }
 
+/// Callback invoked for each event of a given type during replay.
+type EventHandler = Box<dyn Fn(&KernelEvent) -> Result<()>>;
+
 pub struct ReplayEngine {
     mode: ReplayMode,
     events: Vec<KernelEvent>,
     current_position: usize,
     stats: ReplayStats,
-    event_handlers: HashMap<String, Box<dyn Fn(&KernelEvent) -> Result<()>>>,
+    event_handlers: HashMap<String, EventHandler>,
 }
 
 impl ReplayEngine {
@@ -54,7 +57,8 @@ impl ReplayEngine {
     where
         F: Fn(&KernelEvent) -> Result<()> + 'static,
     {
-        self.event_handlers.insert(event_type.to_string(), Box::new(handler));
+        self.event_handlers
+            .insert(event_type.to_string(), Box::new(handler));
         Ok(())
     }
 
@@ -80,7 +84,9 @@ impl ReplayEngine {
     }
 
     pub fn replay_range(&mut self, start_seq: u64, end_seq: u64) -> Result<()> {
-        let range_events: Vec<_> = self.events.iter()
+        let range_events: Vec<_> = self
+            .events
+            .iter()
             .filter(|e| e.sequence >= start_seq && e.sequence <= end_seq)
             .cloned()
             .collect();
@@ -123,7 +129,9 @@ impl ReplayEngine {
     }
 
     pub fn jump_to(&mut self, sequence: u64) -> Result<()> {
-        self.current_position = self.events.iter()
+        self.current_position = self
+            .events
+            .iter()
             .position(|e| e.sequence == sequence)
             .unwrap_or(0);
         Ok(())
@@ -188,16 +196,14 @@ impl ReplayEngine {
         let event_type = self.get_event_type_string(&event.event_type);
 
         match self.event_handlers.get(&event_type) {
-            Some(handler) => {
-                match handler(event) {
-                    Ok(_) => {
-                        self.stats.events_replayed += 1;
-                    }
-                    Err(_) => {
-                        self.stats.events_failed += 1;
-                    }
+            Some(handler) => match handler(event) {
+                Ok(_) => {
+                    self.stats.events_replayed += 1;
                 }
-            }
+                Err(_) => {
+                    self.stats.events_failed += 1;
+                }
+            },
             None => {
                 self.stats.events_replayed += 1;
             }
@@ -319,15 +325,13 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let events = vec![
-            KernelEvent {
-                timestamp: 1000,
-                sequence: 0,
-                event_type: EventType::MemoryAllocate { size: 256 },
-                cpu_id: 0,
-                context_id: None,
-            },
-        ];
+        let events = vec![KernelEvent {
+            timestamp: 1000,
+            sequence: 0,
+            event_type: EventType::MemoryAllocate { size: 256 },
+            cpu_id: 0,
+            context_id: None,
+        }];
 
         let mut engine = ReplayEngine::new(ReplayMode::StepWise, events);
         let _ = engine.replay_next();

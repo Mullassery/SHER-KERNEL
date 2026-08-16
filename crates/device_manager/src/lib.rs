@@ -8,28 +8,27 @@
 //! - Policy enforcement and telemetry
 //! - Health monitoring and error recovery
 
-pub mod registry;
 pub mod discovery;
-pub mod policy;
 pub mod hotplug;
+pub mod policy;
+pub mod registry;
 
 #[cfg(test)]
 mod tests;
 
 // Re-export main types
-pub use registry::{
-    DeviceRegistry, RegisteredDevice, DeviceState, DeviceTelemetry, DeviceHierarchy,
-};
 pub use discovery::{
-    DeviceDiscovery, PciEnumerator, PciDevice, PciCapability,
-    UsbEnumerator, UsbDevice, UsbSpeed,
-    FirmwareDiscovery, FirmwareDevice, FirmwareType,
-};
-pub use policy::{
-    DevicePolicy, DriverPolicy, ErrorAction,
-    DriverDatabase, DriverEntry, DriverMatch, MatchType, DriverMatcher,
+    DeviceDiscovery, FirmwareDevice, FirmwareDiscovery, FirmwareType, PciCapability, PciDevice,
+    PciEnumerator, UsbDevice, UsbEnumerator, UsbSpeed,
 };
 pub use hotplug::{
-    HotPlugManager, HotPlugController, RecoveryManager, RecoveryPolicy,
-    DeviceEvent, DeviceEventType, EventCallback, EventSubscription,
+    DeviceEvent, DeviceEventType, EventCallback, EventSubscription, HotPlugController,
+    HotPlugManager, RecoveryManager, RecoveryPolicy,
+};
+pub use policy::{
+    DevicePolicy, DriverDatabase, DriverEntry, DriverMatch, DriverMatcher, DriverPolicy,
+    ErrorAction, MatchType,
+};
+pub use registry::{
+    DeviceHierarchy, DeviceRegistry, DeviceState, DeviceTelemetry, RegisteredDevice,
 };

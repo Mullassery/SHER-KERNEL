@@ -7,8 +7,8 @@
 //! - Audit logging
 //! - Threat modeling
 
-use std::collections::HashMap;
 use sher_common::ObjectId;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ThreatLevel {
@@ -113,8 +113,16 @@ impl InputValidator {
 
             Ok(())
         } else {
-            Err(sher_common::Error::Security("Validation rule not found".to_string()))
+            Err(sher_common::Error::Security(
+                "Validation rule not found".to_string(),
+            ))
         }
+    }
+}
+
+impl Default for CapabilityValidator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -128,8 +136,8 @@ impl CapabilityValidator {
 
     pub fn grant_capability(&mut self, subject: ObjectId, capability: String, expiration: u64) {
         self.capabilities
-            .entry(subject.clone())
-            .or_insert_with(Vec::new)
+            .entry(subject)
+            .or_default()
             .push(capability);
 
         self.expiration_times.insert(subject, expiration);
@@ -166,7 +174,7 @@ impl CapabilityValidator {
             .expiration_times
             .iter()
             .filter(|(_, &exp_time)| current_time > exp_time)
-            .map(|(subj, _)| subj.clone())
+            .map(|(subj, _)| *subj)
             .collect();
 
         for subject in expired_subjects {
@@ -218,6 +226,75 @@ impl SecurityAudit {
         Err(sher_common::Error::Security(
             "Invalid memory access".to_string(),
         ))
+    }
+
+    /// Look up which registered allocation (by id) owns `address`, if any.
+    /// Uses `MemorySafetyCheck::allocation_id`, closing the loop on that
+    /// field actually being read somewhere.
+    pub fn owning_allocation(&self, address: u64) -> Option<ObjectId> {
+        self.memory_checks.iter().find_map(|check| {
+            let end = check.base_address + check.size_bytes as u64;
+            if check.is_allocated && address >= check.base_address && address < end {
+                Some(check.allocation_id)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Count how many bytes of guard-page protection currently surround
+    /// active allocations — a coarse indicator used in `security_status`.
+    pub fn total_guard_pages(&self) -> u32 {
+        self.memory_checks
+            .iter()
+            .filter(|c| c.is_allocated)
+            .map(|c| c.guard_pages)
+            .sum()
+    }
+
+    /// Validate a piece of input against a named rule registered on the
+    /// embedded [`InputValidator`]. Delegates rather than duplicating logic.
+    pub fn validate_input(&self, rule_name: &str, input: &str) -> sher_common::Result<()> {
+        self.input_validator.validate(rule_name, input)
+    }
+
+    pub fn add_validation_rule(&mut self, rule: ValidationRule) {
+        self.input_validator.add_rule(rule);
+    }
+
+    /// Grant a capability via the embedded [`CapabilityValidator`].
+    pub fn grant_capability(&mut self, subject: ObjectId, capability: String, expiration: u64) {
+        self.capability_validator
+            .grant_capability(subject, capability, expiration);
+    }
+
+    /// Enforce a capability check via the embedded [`CapabilityValidator`],
+    /// logging a security event on denial.
+    pub fn enforce_capability(
+        &mut self,
+        subject: ObjectId,
+        capability: &str,
+        current_time: u64,
+    ) -> sher_common::Result<()> {
+        if self
+            .capability_validator
+            .has_capability(&subject, capability, current_time)
+        {
+            Ok(())
+        } else {
+            self.log_event(SecurityEvent {
+                event_id: ObjectId::new(),
+                timestamp: current_time,
+                event_type: "capability_denied".to_string(),
+                source: subject.to_string(),
+                threat_level: ThreatLevel::Medium,
+                description: format!("subject lacks capability '{capability}'"),
+                remediation: None,
+            });
+            Err(sher_common::Error::Security(format!(
+                "subject {subject} lacks capability '{capability}'"
+            )))
+        }
     }
 
     pub fn get_threat_score(&self) -> u32 {
@@ -422,8 +499,6 @@ mod tests {
 
     #[test]
     fn test_threat_level_assessment() {
-        let mut audit = SecurityAudit::new();
-
         let events = vec![
             (ThreatLevel::Low, 0),
             (ThreatLevel::Medium, 5),
@@ -499,5 +574,52 @@ mod tests {
 
         assert_eq!(audit.get_events().len(), 5);
         assert!(audit.get_events()[0].timestamp < audit.get_events()[4].timestamp);
+    }
+
+    #[test]
+    fn test_audit_delegates_input_validation() {
+        let mut audit = SecurityAudit::new();
+        audit.add_validation_rule(ValidationRule {
+            name: "username".to_string(),
+            max_length: Some(10),
+            min_length: None,
+            allowed_chars: None,
+            reject_patterns: vec![],
+        });
+
+        assert!(audit.validate_input("username", "short").is_ok());
+        assert!(audit
+            .validate_input("username", "way_too_long_name")
+            .is_err());
+    }
+
+    #[test]
+    fn test_audit_capability_enforcement_logs_denial() {
+        let mut audit = SecurityAudit::new();
+        let subject = ObjectId::new();
+
+        assert!(audit.enforce_capability(subject, "admin", 100).is_err());
+        assert_eq!(audit.get_events().len(), 1);
+        assert_eq!(audit.get_events()[0].event_type, "capability_denied");
+
+        audit.grant_capability(subject, "admin".to_string(), 1000);
+        assert!(audit.enforce_capability(subject, "admin", 100).is_ok());
+    }
+
+    #[test]
+    fn test_owning_allocation_and_guard_pages() {
+        let mut audit = SecurityAudit::new();
+        let alloc_id = ObjectId::new();
+        audit.register_memory_check(MemorySafetyCheck {
+            allocation_id: alloc_id,
+            base_address: 0x1000,
+            size_bytes: 256,
+            is_allocated: true,
+            guard_pages: 2,
+        });
+
+        assert_eq!(audit.owning_allocation(0x1050), Some(alloc_id));
+        assert_eq!(audit.owning_allocation(0x9999), None);
+        assert_eq!(audit.total_guard_pages(), 2);
     }
 }

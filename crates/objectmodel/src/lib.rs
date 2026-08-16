@@ -8,12 +8,12 @@
 //! - Security policy
 //! - Dependency tracking
 
-pub mod object;
-pub mod lifecycle;
 pub mod capabilities;
+pub mod lifecycle;
+pub mod object;
 pub mod telemetry;
 
-pub use object::KernelObject;
-pub use lifecycle::Lifecycle;
 pub use capabilities::CapabilitySet;
+pub use lifecycle::Lifecycle;
+pub use object::KernelObject;
 pub use telemetry::Telemetry;

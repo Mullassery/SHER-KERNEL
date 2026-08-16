@@ -1,8 +1,8 @@
 // SHER Driver Runtime: Driver Loader
 // Loads and manages driver binaries
 
-use sher_common::{Result, Error};
-use crate::container::{DriverContainer, ResourceLimits, DriverCapability};
+use crate::container::{DriverCapability, DriverContainer, ResourceLimits};
+use sher_common::{Error, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 pub struct DriverManifest {
     pub name: String,
     pub version: String,
-    pub compatible_devices: Vec<(u16, u16)>,  // (vendor_id, device_id)
+    pub compatible_devices: Vec<(u16, u16)>, // (vendor_id, device_id)
     pub required_capabilities: Vec<DriverCapability>,
     pub memory_required_bytes: u64,
     pub entry_point: String,
@@ -61,7 +61,10 @@ impl DriverLoader {
     pub fn load_driver(&mut self, path: &str, name: &str) -> Result<DriverContainer> {
         // Check if already loaded
         if self.loaded_drivers.contains_key(name) {
-            return Err(Error::AllocationFailed(format!("Driver {} already loaded", name)));
+            return Err(Error::AllocationFailed(format!(
+                "Driver {} already loaded",
+                name
+            )));
         }
 
         // Create container for driver
@@ -76,7 +79,7 @@ impl DriverLoader {
         if path.contains("linux") {
             // Linux drivers get more memory
             container.resource_limits = ResourceLimits {
-                memory_limit_bytes: 512 * 1024 * 1024,  // 512MB for Linux drivers
+                memory_limit_bytes: 512 * 1024 * 1024, // 512MB for Linux drivers
                 cpu_quota_percent: 100,
                 max_file_descriptors: 512,
                 max_threads: 16,
@@ -86,18 +89,18 @@ impl DriverLoader {
 
         // Store Linux driver metadata if applicable
         if path.contains("linux") {
-            self.linux_drivers.insert(name.to_string(), LinuxDriver::new(
-                path.to_string(),
+            self.linux_drivers.insert(
                 name.to_string(),
-                "1.0".to_string(),
-            ));
+                LinuxDriver::new(path.to_string(), name.to_string(), "1.0".to_string()),
+            );
         }
 
         // Start the container
         container.start()?;
 
         // Register in pool
-        self.loaded_drivers.insert(name.to_string(), container.clone());
+        self.loaded_drivers
+            .insert(name.to_string(), container.clone());
         self.total_loaded += 1;
 
         Ok(container)
@@ -110,7 +113,10 @@ impl DriverLoader {
             self.linux_drivers.remove(name);
             Ok(())
         } else {
-            Err(Error::AllocationFailed(format!("Driver {} not found", name)))
+            Err(Error::AllocationFailed(format!(
+                "Driver {} not found",
+                name
+            )))
         }
     }
 
@@ -161,7 +167,9 @@ impl DriverLoader {
             .values()
             .filter(|container| {
                 if let Some(manifest) = self.driver_cache.get(&container.driver_name) {
-                    manifest.compatible_devices.contains(&(vendor_id, device_id))
+                    manifest
+                        .compatible_devices
+                        .contains(&(vendor_id, device_id))
                 } else {
                     false
                 }
@@ -175,17 +183,21 @@ impl DriverLoader {
             if let Some(container) = self.get_driver(name) {
                 for required_cap in &manifest.required_capabilities {
                     if !container.has_capability(*required_cap) {
-                        return Err(Error::AllocationFailed(
-                            format!("Driver {} missing capability", name)
-                        ));
+                        return Err(Error::AllocationFailed(format!(
+                            "Driver {} missing capability",
+                            name
+                        )));
                     }
                 }
                 Ok(true)
             } else {
-                Err(Error::AllocationFailed(format!("Driver {} not loaded", name)))
+                Err(Error::AllocationFailed(format!(
+                    "Driver {} not loaded",
+                    name
+                )))
             }
         } else {
-            Ok(false)  // No manifest, assume compatible
+            Ok(false) // No manifest, assume compatible
         }
     }
 }

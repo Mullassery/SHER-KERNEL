@@ -1,8 +1,8 @@
 // SHER Driver Runtime: Container Isolation
 // Each driver executes in isolated container with restricted capabilities
 
-use sher_common::{ObjectId, Result, Error};
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -34,7 +34,7 @@ impl ContainerState {
             (ContainerState::Paused, ContainerState::Running) => true,
             (ContainerState::Running, ContainerState::Stopping) => true,
             (ContainerState::Stopping, ContainerState::Stopped) => true,
-            (ContainerState::Stopped, ContainerState::Starting) => true,  // Allow restart
+            (ContainerState::Stopped, ContainerState::Starting) => true, // Allow restart
             (ContainerState::Error, ContainerState::Starting) => true,
             (ContainerState::Error, ContainerState::Stopped) => true,
             (ContainerState::Crashed, ContainerState::Starting) => true,
@@ -62,11 +62,11 @@ pub struct ResourceLimits {
 impl Default for ResourceLimits {
     fn default() -> Self {
         ResourceLimits {
-            memory_limit_bytes: 256 * 1024 * 1024,  // 256MB default
-            cpu_quota_percent: 50,                   // 50% CPU
+            memory_limit_bytes: 256 * 1024 * 1024, // 256MB default
+            cpu_quota_percent: 50,                 // 50% CPU
             max_file_descriptors: 256,
             max_threads: 8,
-            network_bandwidth_kbps: 10000,           // 10Mbps
+            network_bandwidth_kbps: 10000, // 10Mbps
         }
     }
 }
@@ -163,15 +163,17 @@ impl DriverContainer {
 
     /// Start container
     pub fn start(&mut self) -> Result<()> {
-        if !self.state.can_transition_to(ContainerState::Starting) &&
-           !self.state.can_transition_to(ContainerState::Running) {
-            return Err(Error::AllocationFailed(
-                format!("Cannot start container in state {:?}", self.state)
-            ));
+        if !self.state.can_transition_to(ContainerState::Starting)
+            && !self.state.can_transition_to(ContainerState::Running)
+        {
+            return Err(Error::AllocationFailed(format!(
+                "Cannot start container in state {:?}",
+                self.state
+            )));
         }
 
         self.state = ContainerState::Starting;
-        self.started_at = Some(0);  // Would be set to current time
+        self.started_at = Some(0); // Would be set to current time
         self.telemetry.start_count += 1;
         self.state = ContainerState::Running;
 
@@ -182,10 +184,13 @@ impl DriverContainer {
     pub fn stop(&mut self) -> Result<()> {
         // Allow stopping from Running or Error/Crashed states
         match self.state {
-            ContainerState::Running | ContainerState::Error | ContainerState::Crashed => {},
-            _ => return Err(Error::AllocationFailed(
-                format!("Cannot stop container in state {:?}", self.state)
-            )),
+            ContainerState::Running | ContainerState::Error | ContainerState::Crashed => {}
+            _ => {
+                return Err(Error::AllocationFailed(format!(
+                    "Cannot stop container in state {:?}",
+                    self.state
+                )))
+            }
         }
 
         self.state = ContainerState::Stopping;
@@ -197,7 +202,9 @@ impl DriverContainer {
     /// Pause container
     pub fn pause(&mut self) -> Result<()> {
         if self.state != ContainerState::Running {
-            return Err(Error::AllocationFailed("Container must be running to pause".to_string()));
+            return Err(Error::AllocationFailed(
+                "Container must be running to pause".to_string(),
+            ));
         }
 
         self.state = ContainerState::Paused;
@@ -207,7 +214,9 @@ impl DriverContainer {
     /// Resume container
     pub fn resume(&mut self) -> Result<()> {
         if self.state != ContainerState::Paused {
-            return Err(Error::AllocationFailed("Container must be paused to resume".to_string()));
+            return Err(Error::AllocationFailed(
+                "Container must be paused to resume".to_string(),
+            ));
         }
 
         self.state = ContainerState::Running;
@@ -291,8 +300,7 @@ impl ContainerPool {
     }
 
     pub fn get_by_name(&self, name: &str) -> Option<&DriverContainer> {
-        self.find_by_name(name)
-            .and_then(|id| self.get(id))
+        self.find_by_name(name).and_then(|id| self.get(id))
     }
 
     pub fn get_by_device(&self, device_id: ObjectId) -> Vec<&DriverContainer> {

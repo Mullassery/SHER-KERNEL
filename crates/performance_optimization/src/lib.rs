@@ -7,8 +7,8 @@
 //! - Memory alignment for cache efficiency
 //! - Lock-free algorithm patterns
 
-use std::collections::VecDeque;
 use sher_common::ObjectId;
+use std::collections::VecDeque;
 
 #[derive(Clone, Debug)]
 pub struct PooledResource<T: Clone> {
@@ -73,16 +73,35 @@ impl<T: Clone + Default> ObjectPool<T> {
         pool
     }
 
+    /// Acquire a pooled slot for `resource`. Reuses an available slot if
+    /// one exists; otherwise grows the pool on demand up to `max_size`
+    /// total slots (available + in-use combined). Returns `None` once the
+    /// pool is at capacity and nothing is available to reuse.
     pub fn acquire(&mut self, resource: T) -> Option<ObjectId> {
         if let Some(mut pooled) = self.available.pop_front() {
             pooled.resource = resource;
             pooled.in_use = true;
-            let id = pooled.id.clone();
+            let id = pooled.id;
             self.in_use.push(pooled);
-            Some(id)
-        } else {
-            None
+            return Some(id);
         }
+
+        if self.in_use.len() + self.available.len() >= self.max_size {
+            return None;
+        }
+
+        let pooled = PooledResource {
+            id: ObjectId::new(),
+            resource,
+            in_use: true,
+        };
+        let id = pooled.id;
+        self.in_use.push(pooled);
+        Some(id)
+    }
+
+    pub fn max_size(&self) -> usize {
+        self.max_size
     }
 
     pub fn release(&mut self, id: &ObjectId) -> bool {
@@ -221,7 +240,9 @@ impl PerformanceOptimizer {
     }
 
     pub fn get_optimization_score(&self) -> f64 {
-        (self.cache_hit_rate * 0.4) + (self.batch_size_avg / 100.0 * 0.3) + (self.pool_utilization * 0.3)
+        (self.cache_hit_rate * 0.4)
+            + (self.batch_size_avg / 100.0 * 0.3)
+            + (self.pool_utilization * 0.3)
     }
 
     pub fn cache_hit_rate(&self) -> f64 {
@@ -419,6 +440,19 @@ mod tests {
         pool.release(&id3);
         assert_eq!(pool.in_use_count(), 0);
         assert_eq!(pool.available_count(), 3);
+    }
+
+    #[test]
+    fn test_pool_respects_max_size_capacity() {
+        let mut pool: ObjectPool<u32> = ObjectPool::new(2);
+        assert_eq!(pool.max_size(), 2);
+        assert_eq!(pool.available_count(), 2);
+
+        pool.acquire(1).unwrap();
+        pool.acquire(2).unwrap();
+        // Both pre-populated slots consumed and pool is at max_size, so a
+        // third acquire must fail rather than growing unbounded.
+        assert!(pool.acquire(3).is_none());
     }
 
     #[test]

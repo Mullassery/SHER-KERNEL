@@ -1,5 +1,5 @@
-use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
+use sher_common::ObjectId;
 use std::collections::HashMap;
 
 // ============================================================================
@@ -8,14 +8,14 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DeviceState {
-    Discovered,      // Enumerated but not initialized
-    Initialized,     // Initialized, waiting for driver
-    Ready,           // Driver loaded, ready for use
-    Running,         // Active and operational
-    Paused,          // Temporarily suspended
-    Error,           // In error state
-    Removing,        // Hot-removal in progress
-    Removed,         // Removed from system
+    Discovered,  // Enumerated but not initialized
+    Initialized, // Initialized, waiting for driver
+    Ready,       // Driver loaded, ready for use
+    Running,     // Active and operational
+    Paused,      // Temporarily suspended
+    Error,       // In error state
+    Removing,    // Hot-removal in progress
+    Removed,     // Removed from system
 }
 
 impl DeviceState {
@@ -24,17 +24,17 @@ impl DeviceState {
     }
 
     pub fn can_transition_to(&self, target: DeviceState) -> bool {
-        match (self, target) {
-            (DeviceState::Discovered, DeviceState::Initialized) => true,
-            (DeviceState::Initialized, DeviceState::Ready) => true,
-            (DeviceState::Ready, DeviceState::Running) => true,
-            (DeviceState::Running, DeviceState::Paused) => true,
-            (DeviceState::Paused, DeviceState::Running) => true,
-            (_, DeviceState::Error) => true,
-            (_, DeviceState::Removing) => true,
-            (DeviceState::Removing, DeviceState::Removed) => true,
-            _ => false,
-        }
+        matches!(
+            (self, target),
+            (DeviceState::Discovered, DeviceState::Initialized)
+                | (DeviceState::Initialized, DeviceState::Ready)
+                | (DeviceState::Ready, DeviceState::Running)
+                | (DeviceState::Running, DeviceState::Paused)
+                | (DeviceState::Paused, DeviceState::Running)
+                | (_, DeviceState::Error)
+                | (_, DeviceState::Removing)
+                | (DeviceState::Removing, DeviceState::Removed)
+        )
     }
 }
 
@@ -116,18 +116,15 @@ impl RegisteredDevice {
 
 #[derive(Debug, Clone, Default)]
 pub struct DeviceHierarchy {
-    pub parent_map: HashMap<ObjectId, ObjectId>,  // child -> parent
-    pub children_map: HashMap<ObjectId, Vec<ObjectId>>,  // parent -> children
+    pub parent_map: HashMap<ObjectId, ObjectId>, // child -> parent
+    pub children_map: HashMap<ObjectId, Vec<ObjectId>>, // parent -> children
 }
 
 impl DeviceHierarchy {
     pub fn add_device(&mut self, device_id: ObjectId, parent_id: Option<ObjectId>) {
         if let Some(parent) = parent_id {
             self.parent_map.insert(device_id, parent);
-            self.children_map
-                .entry(parent)
-                .or_insert_with(Vec::new)
-                .push(device_id);
+            self.children_map.entry(parent).or_default().push(device_id);
         }
     }
 
@@ -157,8 +154,8 @@ impl DeviceHierarchy {
 pub struct DeviceRegistry {
     pub devices: HashMap<ObjectId, RegisteredDevice>,
     pub hierarchy: DeviceHierarchy,
-    pub type_index: HashMap<String, Vec<ObjectId>>,  // device_type -> [ids]
-    pub state_index: HashMap<DeviceState, Vec<ObjectId>>,  // state -> [ids]
+    pub type_index: HashMap<String, Vec<ObjectId>>, // device_type -> [ids]
+    pub state_index: HashMap<DeviceState, Vec<ObjectId>>, // state -> [ids]
 }
 
 impl DeviceRegistry {
@@ -186,14 +183,11 @@ impl DeviceRegistry {
         // Update type index
         self.type_index
             .entry(device_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(device_id);
 
         // Update state index
-        self.state_index
-            .entry(state)
-            .or_insert_with(Vec::new)
-            .push(device_id);
+        self.state_index.entry(state).or_default().push(device_id);
     }
 
     pub fn unregister(&mut self, id: ObjectId) {
@@ -221,7 +215,11 @@ impl DeviceRegistry {
         self.devices.get_mut(&id)
     }
 
-    pub fn update_device_state(&mut self, id: ObjectId, new_state: DeviceState) -> Result<(), String> {
+    pub fn update_device_state(
+        &mut self,
+        id: ObjectId,
+        new_state: DeviceState,
+    ) -> Result<(), String> {
         if let Some(device) = self.devices.get_mut(&id) {
             // Remove from old state index
             if let Some(state_list) = self.state_index.get_mut(&device.state) {
@@ -232,10 +230,7 @@ impl DeviceRegistry {
             device.transition_to(new_state)?;
 
             // Add to new state index
-            self.state_index
-                .entry(new_state)
-                .or_insert_with(Vec::new)
-                .push(id);
+            self.state_index.entry(new_state).or_default().push(id);
 
             Ok(())
         } else {
@@ -250,33 +245,21 @@ impl DeviceRegistry {
     pub fn find_by_type(&self, device_type: &str) -> Vec<&RegisteredDevice> {
         self.type_index
             .get(device_type)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.devices.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.devices.get(id)).collect())
             .unwrap_or_default()
     }
 
     pub fn find_by_state(&self, state: DeviceState) -> Vec<&RegisteredDevice> {
         self.state_index
             .get(&state)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.devices.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.devices.get(id)).collect())
             .unwrap_or_default()
     }
 
     pub fn find_children(&self, parent_id: ObjectId) -> Vec<&RegisteredDevice> {
         self.hierarchy
             .get_children(parent_id)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.devices.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.devices.get(id)).collect())
             .unwrap_or_default()
     }
 

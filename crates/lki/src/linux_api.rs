@@ -1,5 +1,5 @@
-use sher_common::{ObjectId, Result};
 use serde::{Deserialize, Serialize};
+use sher_common::{ObjectId, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinuxKernelInterface {
@@ -30,7 +30,10 @@ impl LinuxKernelInterface {
         if self.supports_api(api_name) {
             Ok(format!("Translated: {}", api_name))
         } else {
-            Err(sher_common::Error::Driver(format!("Unsupported API: {}", api_name)))
+            Err(sher_common::Error::Driver(format!(
+                "Unsupported API: {}",
+                api_name
+            )))
         }
     }
 }

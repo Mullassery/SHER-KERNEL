@@ -1,8 +1,8 @@
 // SHER LKI: Validation Layer
 // All Linux API calls are validated before translation
 
-use sher_common::Error;
 use serde::{Deserialize, Serialize};
+use sher_common::Error;
 
 // ============================================================================
 // VALIDATION FRAMEWORK
@@ -62,7 +62,7 @@ impl Validator {
         Validator {
             total_validations: 0,
             failed_validations: 0,
-            max_allocation_size: 1024 * 1024 * 1024,  // 1GB max
+            max_allocation_size: 1024 * 1024 * 1024, // 1GB max
             valid_irq_range: (0, 255),
         }
     }
@@ -129,7 +129,7 @@ impl Validator {
     pub fn validate_alignment(&mut self, ptr: u64, alignment: u32) -> ValidationResult {
         self.total_validations += 1;
 
-        if alignment > 0 && (ptr % alignment as u64) != 0 {
+        if alignment > 0 && !ptr.is_multiple_of(alignment as u64) {
             self.failed_validations += 1;
             return Err(ValidationError::AlignmentViolation);
         }
@@ -142,7 +142,9 @@ impl Validator {
         if self.total_validations == 0 {
             100.0
         } else {
-            ((self.total_validations - self.failed_validations) as f64 / self.total_validations as f64) * 100.0
+            ((self.total_validations - self.failed_validations) as f64
+                / self.total_validations as f64)
+                * 100.0
         }
     }
 }
@@ -175,7 +177,12 @@ impl SignatureValidator {
         self.signatures.insert(sig.name.clone(), sig);
     }
 
-    pub fn validate_call(&self, api_name: &str, arg_count: u32, capabilities: &[String]) -> ValidationResult {
+    pub fn validate_call(
+        &self,
+        api_name: &str,
+        arg_count: u32,
+        capabilities: &[String],
+    ) -> ValidationResult {
         if let Some(sig) = self.signatures.get(api_name) {
             if arg_count < sig.min_args || arg_count > sig.max_args {
                 return Err(ValidationError::InvalidFlags);
@@ -204,6 +211,12 @@ pub struct ValidationStats {
     pub validated_calls: u64,
     pub failed_calls: u64,
     pub error_rate: f64,
+}
+
+impl Default for ValidationStats {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ValidationStats {

@@ -9,18 +9,19 @@
 //!
 //! Same kernel binary scales across entire spectrum.
 
+pub mod adapter;
+pub mod budget;
+pub mod feature_matrix;
 pub mod profiler;
 pub mod tier;
-pub mod budget;
-pub mod adapter;
-pub mod feature_matrix;
 
 use sher_common::Result;
 use tracing::info;
 
-pub use tier::MemoryTier;
+pub use adapter::{AdaptationDecision, RuntimeAdapter, ThermalState};
 pub use budget::ResourceBudget;
 pub use feature_matrix::FeatureMatrix;
+pub use tier::MemoryTier;
 
 pub struct AroConfig {
     pub continuous_adaptation: bool,
@@ -43,6 +44,8 @@ pub struct AdaptiveResourceOrchestrator {
     tier: MemoryTier,
     budget: ResourceBudget,
     features: FeatureMatrix,
+    adapter: RuntimeAdapter,
+    last_decision: Option<AdaptationDecision>,
 }
 
 impl AdaptiveResourceOrchestrator {
@@ -60,6 +63,8 @@ impl AdaptiveResourceOrchestrator {
             tier,
             budget,
             features,
+            adapter: RuntimeAdapter::new(),
+            last_decision: None,
         })
     }
 
@@ -75,11 +80,103 @@ impl AdaptiveResourceOrchestrator {
         &self.budget
     }
 
-    pub async fn adapt_to_pressure(&mut self, _memory_pressure: f64) -> Result<()> {
-        if self.config.continuous_adaptation {
-            info!("ARO: Adapting to memory pressure");
-            // Shrink caches, disable background services, etc.
+    pub fn last_decision(&self) -> Option<&AdaptationDecision> {
+        self.last_decision.as_ref()
+    }
+
+    /// Feed a battery-power signal through to the runtime adapter, honoring
+    /// `AroConfig::battery_aware`.
+    pub fn adapt_to_battery(&mut self, charging: bool) {
+        if self.config.battery_aware {
+            let decision = self.adapter.adapt_to_battery(charging);
+            info!("ARO: battery adaptation: {}", decision.reason);
+            self.last_decision = Some(decision);
+        }
+    }
+
+    /// Feed a thermal signal through to the runtime adapter, honoring
+    /// `AroConfig::thermal_aware`.
+    pub fn adapt_to_temperature(&mut self, celsius: f64) {
+        if self.config.thermal_aware {
+            let decision = self.adapter.adapt_to_temperature(celsius);
+            info!("ARO: thermal adaptation: {}", decision.reason);
+            self.last_decision = Some(decision);
+        }
+    }
+
+    /// Shrink the cache budget under sustained memory pressure
+    /// (`memory_pressure` in `0.0..=1.0`). Real bookkeeping: this actually
+    /// mutates `self.budget`, it does not just log.
+    pub async fn adapt_to_pressure(&mut self, memory_pressure: f64) -> Result<()> {
+        if !self.config.continuous_adaptation {
+            return Ok(());
+        }
+        let pressure = memory_pressure.clamp(0.0, 1.0);
+        if pressure > 0.8 {
+            let original = self.budget.cache_memory_mb;
+            self.budget.cache_memory_mb = (original as f64 * 0.5) as u32;
+            info!(
+                "ARO: high memory pressure ({:.0}%), shrinking cache budget {}MB -> {}MB",
+                pressure * 100.0,
+                original,
+                self.budget.cache_memory_mb
+            );
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn initialize_detects_a_tier_and_matching_budget() {
+        let aro = AdaptiveResourceOrchestrator::initialize(AroConfig::default())
+            .await
+            .unwrap();
+        assert!(aro.budget().total_memory_mb > 0);
+        let expected = ResourceBudget::for_tier(&aro.tier());
+        assert_eq!(aro.budget().total_memory_mb, expected.total_memory_mb);
+    }
+
+    #[tokio::test]
+    async fn high_pressure_shrinks_cache_budget() {
+        let mut aro = AdaptiveResourceOrchestrator::initialize(AroConfig::default())
+            .await
+            .unwrap();
+        let before = aro.budget().cache_memory_mb;
+        aro.adapt_to_pressure(0.95).await.unwrap();
+        assert!(aro.budget().cache_memory_mb < before);
+    }
+
+    #[tokio::test]
+    async fn low_pressure_leaves_budget_untouched() {
+        let mut aro = AdaptiveResourceOrchestrator::initialize(AroConfig::default())
+            .await
+            .unwrap();
+        let before = aro.budget().cache_memory_mb;
+        aro.adapt_to_pressure(0.1).await.unwrap();
+        assert_eq!(aro.budget().cache_memory_mb, before);
+    }
+
+    #[tokio::test]
+    async fn battery_awareness_respects_config_flag() {
+        let mut config = AroConfig::default();
+        config.battery_aware = false;
+        let mut aro = AdaptiveResourceOrchestrator::initialize(config)
+            .await
+            .unwrap();
+        aro.adapt_to_battery(false);
+        assert!(aro.last_decision().is_none());
+    }
+
+    #[tokio::test]
+    async fn battery_awareness_records_decision_when_enabled() {
+        let mut aro = AdaptiveResourceOrchestrator::initialize(AroConfig::default())
+            .await
+            .unwrap();
+        aro.adapt_to_battery(false);
+        assert!(aro.last_decision().unwrap().reduce_background_work);
     }
 }

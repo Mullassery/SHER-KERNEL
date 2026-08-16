@@ -11,5 +11,5 @@
 pub mod memory_safety;
 pub mod syscall_hardening;
 
-pub use memory_safety::{MemorySafetyValidator, MemorySafetyAudit, AuditResult};
-pub use syscall_hardening::{SyscallHardener, SyscallPolicy, SyscallType, SyscallAudit};
+pub use memory_safety::{AuditResult, MemorySafetyAudit, MemorySafetyValidator};
+pub use syscall_hardening::{SyscallAudit, SyscallHardener, SyscallPolicy, SyscallType};

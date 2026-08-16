@@ -1,8 +1,8 @@
 // SHER AI Services: Predictive Resource Allocation
 // Machine learning-based prediction of resource needs for optimal scheduling
 
-use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
+use sher_common::ObjectId;
 use std::collections::HashMap;
 
 // ============================================================================
@@ -69,7 +69,7 @@ impl PredictiveAllocator {
         PredictiveAllocator {
             profiles: HashMap::new(),
             history_window: 100,
-            prediction_horizon_ms: 1000,  // 1 second ahead
+            prediction_horizon_ms: 1000, // 1 second ahead
             learning_rate: 0.1,
         }
     }
@@ -110,13 +110,15 @@ impl PredictiveAllocator {
             });
 
         // Update memory pattern using exponential moving average
-        profile.memory_usage_pattern.avg_allocation_size_bytes = (
-            (profile.memory_usage_pattern.avg_allocation_size_bytes as f64 * (1.0 - self.learning_rate))
-                + (observation.allocated_bytes as f64 * self.learning_rate)
-        ) as u64;
+        profile.memory_usage_pattern.avg_allocation_size_bytes =
+            ((profile.memory_usage_pattern.avg_allocation_size_bytes as f64
+                * (1.0 - self.learning_rate))
+                + (observation.allocated_bytes as f64 * self.learning_rate)) as u64;
 
-        profile.memory_usage_pattern.peak_allocation_bytes =
-            profile.memory_usage_pattern.peak_allocation_bytes.max(observation.allocated_bytes);
+        profile.memory_usage_pattern.peak_allocation_bytes = profile
+            .memory_usage_pattern
+            .peak_allocation_bytes
+            .max(observation.allocated_bytes);
 
         profile.memory_usage_pattern.allocation_rate_per_second =
             profile.memory_usage_pattern.avg_allocation_size_bytes as f64 / 1024.0;
@@ -126,21 +128,30 @@ impl PredictiveAllocator {
             profile.cpu_usage_pattern.avg_utilization_percent * (1.0 - self.learning_rate)
                 + observation.cpu_usage_percent * self.learning_rate;
 
-        profile.cpu_usage_pattern.peak_utilization_percent =
-            profile.cpu_usage_pattern.peak_utilization_percent.max(observation.cpu_usage_percent);
+        profile.cpu_usage_pattern.peak_utilization_percent = profile
+            .cpu_usage_pattern
+            .peak_utilization_percent
+            .max(observation.cpu_usage_percent);
 
         // Update I/O pattern
-        profile.io_pattern.avg_io_per_second =
-            profile.io_pattern.avg_io_per_second * (1.0 - self.learning_rate) + observation.io_ops_per_sec * self.learning_rate;
+        profile.io_pattern.avg_io_per_second = profile.io_pattern.avg_io_per_second
+            * (1.0 - self.learning_rate)
+            + observation.io_ops_per_sec * self.learning_rate;
 
-        profile.io_pattern.peak_io_per_second = profile.io_pattern.peak_io_per_second.max(observation.io_ops_per_sec);
+        profile.io_pattern.peak_io_per_second = profile
+            .io_pattern
+            .peak_io_per_second
+            .max(observation.io_ops_per_sec);
 
         // Update network pattern
-        profile.network_pattern.avg_bandwidth_mbps = profile.network_pattern.avg_bandwidth_mbps * (1.0 - self.learning_rate)
+        profile.network_pattern.avg_bandwidth_mbps = profile.network_pattern.avg_bandwidth_mbps
+            * (1.0 - self.learning_rate)
             + observation.network_bandwidth_mbps * self.learning_rate;
 
-        profile.network_pattern.peak_bandwidth_mbps =
-            profile.network_pattern.peak_bandwidth_mbps.max(observation.network_bandwidth_mbps);
+        profile.network_pattern.peak_bandwidth_mbps = profile
+            .network_pattern
+            .peak_bandwidth_mbps
+            .max(observation.network_bandwidth_mbps);
 
         // Increase confidence with more samples
         profile.samples += 1;
@@ -152,7 +163,8 @@ impl PredictiveAllocator {
         let profile = self.profiles.get(&driver_id)?;
 
         // Conservative prediction: use peak metrics with confidence discount
-        let peak_memory = (profile.memory_usage_pattern.peak_allocation_bytes as f64 * profile.confidence) as u64;
+        let peak_memory =
+            (profile.memory_usage_pattern.peak_allocation_bytes as f64 * profile.confidence) as u64;
         let peak_cpu = profile.cpu_usage_pattern.peak_utilization_percent * profile.confidence;
         let peak_io = profile.io_pattern.peak_io_per_second * profile.confidence;
         let peak_network = profile.network_pattern.peak_bandwidth_mbps * profile.confidence;
@@ -169,7 +181,10 @@ impl PredictiveAllocator {
     }
 
     /// Get allocation recommendation based on predicted needs
-    pub fn get_allocation_recommendation(&self, driver_id: ObjectId) -> Option<AllocationRecommendation> {
+    pub fn get_allocation_recommendation(
+        &self,
+        driver_id: ObjectId,
+    ) -> Option<AllocationRecommendation> {
         let prediction = self.predict_resources(driver_id)?;
         let profile = self.profiles.get(&driver_id)?;
 
@@ -194,7 +209,9 @@ impl PredictiveAllocator {
             priority,
             cpu_affinity,
             prefer_local_numa: prediction.predicted_memory_bytes > 1024 * 1024 * 100, // > 100MB
-            io_scheduling_class: IoSchedulingClass::from_io_rate(prediction.predicted_io_ops_per_sec),
+            io_scheduling_class: IoSchedulingClass::from_io_rate(
+                prediction.predicted_io_ops_per_sec,
+            ),
             confidence: prediction.confidence,
         })
     }
@@ -202,14 +219,19 @@ impl PredictiveAllocator {
     /// Get all profiles sorted by CPU utilization
     pub fn get_profiles_by_cpu_load(&self) -> Vec<&ResourceProfile> {
         let mut profiles: Vec<_> = self.profiles.values().collect();
-        profiles.sort_by(|a, b| b.cpu_usage_pattern.avg_utilization_percent.partial_cmp(&a.cpu_usage_pattern.avg_utilization_percent).unwrap());
+        profiles.sort_by(|a, b| {
+            b.cpu_usage_pattern
+                .avg_utilization_percent
+                .partial_cmp(&a.cpu_usage_pattern.avg_utilization_percent)
+                .unwrap()
+        });
         profiles
     }
 
     /// Get all profiles sorted by memory utilization
     pub fn get_profiles_by_memory_usage(&self) -> Vec<&ResourceProfile> {
         let mut profiles: Vec<_> = self.profiles.values().collect();
-        profiles.sort_by(|a, b| b.memory_usage_pattern.peak_allocation_bytes.cmp(&a.memory_usage_pattern.peak_allocation_bytes));
+        profiles.sort_by_key(|p| std::cmp::Reverse(p.memory_usage_pattern.peak_allocation_bytes));
         profiles
     }
 
@@ -224,8 +246,13 @@ impl PredictiveAllocator {
     /// Get statistics
     pub fn get_stats(&self) -> PredictionStats {
         let total_drivers = self.profiles.len();
-        let high_confidence = self.profiles.values().filter(|p| p.confidence > 0.8).count();
-        let avg_confidence = self.profiles.values().map(|p| p.confidence).sum::<f64>() / total_drivers.max(1) as f64;
+        let high_confidence = self
+            .profiles
+            .values()
+            .filter(|p| p.confidence > 0.8)
+            .count();
+        let avg_confidence =
+            self.profiles.values().map(|p| p.confidence).sum::<f64>() / total_drivers.max(1) as f64;
 
         PredictionStats {
             total_drivers: total_drivers as u64,

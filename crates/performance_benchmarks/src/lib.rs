@@ -6,8 +6,15 @@
 //! - Input event latency
 //! - Memory overhead
 //! - Concurrent application scaling
+//!
+//! Like `system_integration`, this internal-only benchmark harness
+//! deliberately continues to exercise the `#[deprecated]`
+//! `wayland_server::WaylandCompositor` path (compositor/input policy now
+//! lives in SHER-Display); see that crate's module docs for the full
+//! rationale. Nothing external depends on this crate.
+#![allow(deprecated)]
 
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug)]
 pub struct LatencyMeasurement {
@@ -50,7 +57,12 @@ impl Benchmark {
         }
     }
 
-    pub fn measure_operation<F>(&self, name: &str, iterations: u32, mut operation: F) -> LatencyMeasurement
+    pub fn measure_operation<F>(
+        &self,
+        name: &str,
+        iterations: u32,
+        mut operation: F,
+    ) -> LatencyMeasurement
     where
         F: FnMut(),
     {
@@ -67,7 +79,12 @@ impl Benchmark {
         }
     }
 
-    pub fn measure_throughput<F>(&self, name: &str, duration: Duration, mut operation: F) -> ThroughputMeasurement
+    pub fn measure_throughput<F>(
+        &self,
+        name: &str,
+        duration: Duration,
+        mut operation: F,
+    ) -> ThroughputMeasurement
     where
         F: FnMut() -> bool,
     {
@@ -151,17 +168,17 @@ mod tests {
 
         assert_eq!(measurement.operation, "increment");
         assert_eq!(measurement.iterations, 100);
-        assert!(measurement.duration_us >= 0);
     }
 
     #[test]
     fn test_measure_throughput() {
         let benchmark = Benchmark::new();
         let mut counter = 0u32;
-        let measurement = benchmark.measure_throughput("simple_op", Duration::from_millis(10), || {
-            counter = counter.wrapping_add(1);
-            true
-        });
+        let measurement =
+            benchmark.measure_throughput("simple_op", Duration::from_millis(10), || {
+                counter = counter.wrapping_add(1);
+                true
+            });
 
         assert_eq!(measurement.operation, "simple_op");
         assert!(measurement.operations_per_second > 0.0);
@@ -231,9 +248,9 @@ mod tests {
 
     #[test]
     fn test_wayland_client_connection_latency() {
+        use sher_common::ObjectId;
         use system_integration::ApplicationStack;
         use wayland_server::WaylandClient;
-        use sher_common::ObjectId;
 
         let benchmark = Benchmark::new();
         let mut stack = ApplicationStack::new();
@@ -254,9 +271,9 @@ mod tests {
 
     #[test]
     fn test_surface_creation_latency() {
+        use sher_common::ObjectId;
         use system_integration::ApplicationStack;
         use wayland_server::WaylandClient;
-        use sher_common::ObjectId;
 
         let benchmark = Benchmark::new();
         let mut stack = ApplicationStack::new();
@@ -287,12 +304,11 @@ mod tests {
         let mut stack = ApplicationStack::new();
         let _ = stack.initialize();
 
-        let measurement =
-            benchmark.measure_operation("buffer_allocation", 10, || {
-                let _ = stack
-                    .get_compositor_mut()
-                    .create_buffer(1920, 1080, 0x34325241);
-            });
+        let measurement = benchmark.measure_operation("buffer_allocation", 10, || {
+            let _ = stack
+                .get_compositor_mut()
+                .create_buffer(1920, 1080, 0x34325241);
+        });
 
         assert_eq!(measurement.operation, "buffer_allocation");
         assert!(measurement.duration_us < 10000);
@@ -300,9 +316,9 @@ mod tests {
 
     #[test]
     fn test_gpu_connector_registration_latency() {
-        use system_integration::ApplicationStack;
-        use gpu_driver::{Connector, ConnectorType, ConnectorStatus, DisplayMode};
+        use gpu_driver::{Connector, ConnectorStatus, ConnectorType, DisplayMode};
         use sher_common::ObjectId;
+        use system_integration::ApplicationStack;
 
         let benchmark = Benchmark::new();
         let mut stack = ApplicationStack::new();
@@ -332,9 +348,9 @@ mod tests {
 
     #[test]
     fn test_audio_device_registration_latency() {
-        use system_integration::ApplicationStack;
-        use audio_driver::{AudioDevice, DeviceRole, AudioFormat};
+        use audio_driver::{AudioDevice, AudioFormat, DeviceRole};
         use sher_common::ObjectId;
+        use system_integration::ApplicationStack;
 
         let benchmark = Benchmark::new();
         let mut stack = ApplicationStack::new();
@@ -361,9 +377,9 @@ mod tests {
 
     #[test]
     fn test_input_device_registration_latency() {
-        use system_integration::ApplicationStack;
         use input_driver::{InputDevice, InputDeviceType};
         use sher_common::ObjectId;
+        use system_integration::ApplicationStack;
 
         let benchmark = Benchmark::new();
         let mut stack = ApplicationStack::new();
@@ -388,9 +404,9 @@ mod tests {
 
     #[test]
     fn test_pointer_event_routing_latency() {
-        use system_integration::ApplicationStack;
-        use wayland_server::{WaylandClient, PointerEvent, PointerEventType};
         use sher_common::ObjectId;
+        use system_integration::ApplicationStack;
+        use wayland_server::{PointerEvent, PointerEventType, WaylandClient};
 
         let benchmark = Benchmark::new();
         let mut stack = ApplicationStack::new();
@@ -409,17 +425,16 @@ mod tests {
             .create_surface(&client_id)
             .unwrap();
 
-        let measurement =
-            benchmark.measure_operation("pointer_event_routing", 100, || {
-                let event = PointerEvent {
-                    surface_id: Some(surface.id.clone()),
-                    event_type: PointerEventType::Motion,
-                    x: 100,
-                    y: 200,
-                    button: None,
-                };
-                let _ = stack.get_compositor_mut().route_pointer_event(event);
-            });
+        let measurement = benchmark.measure_operation("pointer_event_routing", 100, || {
+            let event = PointerEvent {
+                surface_id: Some(surface.id.clone()),
+                event_type: PointerEventType::Motion,
+                x: 100,
+                y: 200,
+                button: None,
+            };
+            let _ = stack.get_compositor_mut().route_pointer_event(event);
+        });
 
         assert_eq!(measurement.operation, "pointer_event_routing");
         assert!(measurement.duration_us < 1000);
@@ -427,9 +442,9 @@ mod tests {
 
     #[test]
     fn test_multi_surface_throughput() {
+        use sher_common::ObjectId;
         use system_integration::ApplicationStack;
         use wayland_server::WaylandClient;
-        use sher_common::ObjectId;
 
         let benchmark = Benchmark::new();
         let mut stack = ApplicationStack::new();
@@ -444,12 +459,13 @@ mod tests {
         let client_id = client.id.clone();
         let _ = stack.get_compositor_mut().connect_client(client);
 
-        let measurement = benchmark.measure_throughput("surface_creation", Duration::from_millis(100), || {
-            match stack.get_compositor_mut().create_surface(&client_id) {
-                Ok(_) => true,
-                Err(_) => false,
-            }
-        });
+        let measurement =
+            benchmark.measure_throughput("surface_creation", Duration::from_millis(100), || {
+                match stack.get_compositor_mut().create_surface(&client_id) {
+                    Ok(_) => true,
+                    Err(_) => false,
+                }
+            });
 
         assert_eq!(measurement.operation, "surface_creation");
         assert!(measurement.operations_per_second > 1000.0);

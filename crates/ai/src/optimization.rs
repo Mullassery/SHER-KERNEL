@@ -1,16 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ResourceOptimizer {
     pub optimization_passes: u32,
-}
-
-impl Default for ResourceOptimizer {
-    fn default() -> Self {
-        Self {
-            optimization_passes: 0,
-        }
-    }
 }
 
 impl ResourceOptimizer {

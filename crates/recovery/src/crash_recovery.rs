@@ -7,9 +7,9 @@
 //! - Watchdog monitoring
 //! - Graceful degradation
 
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use sher_common::{ObjectId, Result};
+use std::collections::HashMap;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum RecoveryState {
@@ -19,7 +19,7 @@ pub enum RecoveryState {
     Failed,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CrashMetrics {
     pub crash_count: usize,
     pub last_crash_time: u64,
@@ -27,19 +27,6 @@ pub struct CrashMetrics {
     pub successful_recoveries: usize,
     pub failed_recoveries: usize,
     pub total_downtime_ms: u64,
-}
-
-impl Default for CrashMetrics {
-    fn default() -> Self {
-        CrashMetrics {
-            crash_count: 0,
-            last_crash_time: 0,
-            recovery_attempts: 0,
-            successful_recoveries: 0,
-            failed_recoveries: 0,
-            total_downtime_ms: 0,
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -84,14 +71,13 @@ impl CrashRecoveryManager {
 
     pub fn record_crash(&mut self, driver_id: ObjectId) -> Result<()> {
         let now = self.current_time();
-        let metrics = self.metrics.entry(driver_id.clone())
-            .or_insert_with(CrashMetrics::default);
+        let metrics = self.metrics.entry(driver_id).or_default();
 
         metrics.crash_count += 1;
         metrics.last_crash_time = now;
 
         if metrics.crash_count >= self.policy.quarantine_threshold_crashes {
-            self.quarantine_driver(driver_id.clone())?;
+            self.quarantine_driver(driver_id)?;
             self.recovery_state = RecoveryState::Degraded;
         }
 
@@ -118,23 +104,24 @@ impl CrashRecoveryManager {
     }
 
     pub fn record_recovery_attempt(&mut self, driver_id: ObjectId) -> Result<()> {
-        let metrics = self.metrics.entry(driver_id)
-            .or_insert_with(CrashMetrics::default);
+        let metrics = self.metrics.entry(driver_id).or_default();
         metrics.recovery_attempts += 1;
         Ok(())
     }
 
-    pub fn record_successful_recovery(&mut self, driver_id: ObjectId, downtime_ms: u64) -> Result<()> {
-        let metrics = self.metrics.entry(driver_id)
-            .or_insert_with(CrashMetrics::default);
+    pub fn record_successful_recovery(
+        &mut self,
+        driver_id: ObjectId,
+        downtime_ms: u64,
+    ) -> Result<()> {
+        let metrics = self.metrics.entry(driver_id).or_default();
         metrics.successful_recoveries += 1;
         metrics.total_downtime_ms += downtime_ms;
         Ok(())
     }
 
     pub fn record_failed_recovery(&mut self, driver_id: ObjectId) -> Result<()> {
-        let metrics = self.metrics.entry(driver_id)
-            .or_insert_with(CrashMetrics::default);
+        let metrics = self.metrics.entry(driver_id).or_default();
         metrics.failed_recoveries += 1;
         Ok(())
     }
@@ -167,9 +154,7 @@ impl CrashRecoveryManager {
     }
 
     pub fn health_check(&mut self) -> RecoveryState {
-        let healthy_drivers = self.metrics.values()
-            .filter(|m| m.crash_count == 0)
-            .count();
+        let healthy_drivers = self.metrics.values().filter(|m| m.crash_count == 0).count();
 
         let total_drivers = self.metrics.len();
 

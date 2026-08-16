@@ -1,8 +1,8 @@
 // SHER Driver Runtime: Sandbox Enforcement
 // Security isolation for driver execution
 
-use sher_common::{ObjectId, Result, Error};
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::{HashMap, HashSet};
 
 // ============================================================================
@@ -11,9 +11,9 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SecurityLevel {
-    Permissive,  // Minimal restrictions (native SHER drivers)
-    Restricted,  // Standard restrictions (most Linux drivers)
-    Strict,      // Maximum restrictions (untrusted/new drivers)
+    Permissive, // Minimal restrictions (native SHER drivers)
+    Restricted, // Standard restrictions (most Linux drivers)
+    Strict,     // Maximum restrictions (untrusted/new drivers)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,8 +27,8 @@ pub struct SyscallPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestrictedSyscall {
     pub name: String,
-    pub allowed_args: Vec<u32>,  // Whitelisted argument values
-    pub rate_limit: u32,          // Calls per second
+    pub allowed_args: Vec<u32>, // Whitelisted argument values
+    pub rate_limit: u32,        // Calls per second
 }
 
 impl Default for SyscallPolicy {
@@ -110,14 +110,8 @@ impl Default for FileDescriptorPolicy {
                 "/dev/mem".to_string(),
                 "/dev/kmem".to_string(),
             ],
-            blocked_file_paths: vec![
-                "/etc/shadow".to_string(),
-                "/root/*".to_string(),
-            ],
-            read_only_paths: vec![
-                "/sys/*".to_string(),
-                "/proc/*".to_string(),
-            ],
+            blocked_file_paths: vec!["/etc/shadow".to_string(), "/root/*".to_string()],
+            read_only_paths: vec!["/sys/*".to_string(), "/proc/*".to_string()],
         }
     }
 }
@@ -155,24 +149,46 @@ impl SandboxPolicy {
             return Ok(true);
         }
 
-        if self.syscall_policy.blocked_syscalls.contains(&syscall.to_string()) {
-            return Err(Error::AllocationFailed(format!("Syscall {} blocked by policy", syscall)));
+        if self
+            .syscall_policy
+            .blocked_syscalls
+            .contains(&syscall.to_string())
+        {
+            return Err(Error::AllocationFailed(format!(
+                "Syscall {} blocked by policy",
+                syscall
+            )));
         }
 
-        if self.syscall_policy.allowed_syscalls.contains(&syscall.to_string()) {
+        if self
+            .syscall_policy
+            .allowed_syscalls
+            .contains(&syscall.to_string())
+        {
             return Ok(true);
         }
 
         // Check if in restricted list
-        if let Some(restricted) = self.syscall_policy.restricted_syscalls.iter().find(|r| r.name == syscall) {
+        if let Some(restricted) = self
+            .syscall_policy
+            .restricted_syscalls
+            .iter()
+            .find(|r| r.name == syscall)
+        {
             if restricted.rate_limit == 0 {
-                return Err(Error::AllocationFailed(format!("Syscall {} not allowed", syscall)));
+                return Err(Error::AllocationFailed(format!(
+                    "Syscall {} not allowed",
+                    syscall
+                )));
             }
             return Ok(true);
         }
 
         // Default deny
-        Err(Error::AllocationFailed(format!("Syscall {} not whitelisted", syscall)))
+        Err(Error::AllocationFailed(format!(
+            "Syscall {} not whitelisted",
+            syscall
+        )))
     }
 
     pub fn check_file_access(&self, path: &str, write: bool) -> Result<bool> {
@@ -183,7 +199,10 @@ impl SandboxPolicy {
         // Check blocked paths
         for blocked in &self.fd_policy.blocked_file_paths {
             if path.starts_with(blocked.trim_end_matches('*')) {
-                return Err(Error::AllocationFailed(format!("Access to {} blocked", path)));
+                return Err(Error::AllocationFailed(format!(
+                    "Access to {} blocked",
+                    path
+                )));
             }
         }
 
@@ -191,7 +210,10 @@ impl SandboxPolicy {
         if write {
             for ro_path in &self.fd_policy.read_only_paths {
                 if path.starts_with(ro_path.trim_end_matches('*')) {
-                    return Err(Error::AllocationFailed(format!("Write to read-only path {}", path)));
+                    return Err(Error::AllocationFailed(format!(
+                        "Write to read-only path {}",
+                        path
+                    )));
                 }
             }
         }
@@ -204,7 +226,10 @@ impl SandboxPolicy {
         }
 
         // Default deny
-        Err(Error::AllocationFailed(format!("Access to {} not allowed", path)))
+        Err(Error::AllocationFailed(format!(
+            "Access to {} not allowed",
+            path
+        )))
     }
 }
 
@@ -248,14 +273,17 @@ impl SandboxManager {
             if let Some(log) = self.syscall_log.get_mut(&driver_id) {
                 log.push(SyscallEntry {
                     syscall: syscall.to_string(),
-                    timestamp: 0,  // Would be set to current time
+                    timestamp: 0, // Would be set to current time
                     allowed,
                 });
             }
 
             policy.check_syscall(syscall)
         } else {
-            Err(Error::AllocationFailed(format!("Driver {} not found", driver_id)))
+            Err(Error::AllocationFailed(format!(
+                "Driver {} not found",
+                driver_id
+            )))
         }
     }
 
@@ -268,7 +296,10 @@ impl SandboxManager {
             policy.enabled = true;
             Ok(())
         } else {
-            Err(Error::AllocationFailed(format!("Driver {} not found", driver_id)))
+            Err(Error::AllocationFailed(format!(
+                "Driver {} not found",
+                driver_id
+            )))
         }
     }
 
@@ -277,7 +308,10 @@ impl SandboxManager {
             policy.enabled = false;
             Ok(())
         } else {
-            Err(Error::AllocationFailed(format!("Driver {} not found", driver_id)))
+            Err(Error::AllocationFailed(format!(
+                "Driver {} not found",
+                driver_id
+            )))
         }
     }
 }
@@ -318,7 +352,10 @@ impl CapabilitySet {
         if self.has(capability) {
             Ok(())
         } else {
-            Err(Error::AllocationFailed(format!("Capability {} not granted", capability)))
+            Err(Error::AllocationFailed(format!(
+                "Capability {} not granted",
+                capability
+            )))
         }
     }
 }

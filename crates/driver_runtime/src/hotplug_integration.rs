@@ -1,12 +1,12 @@
 // SHER Driver Runtime: Hot-Plug Integration
 // Bridges Phase 2 device events with Phase 3 driver lifecycle
 
-use sher_common::{ObjectId, Result, Error};
 use crate::container::DriverContainer;
 use crate::loader::DriverLoader;
-use crate::sandbox::{SandboxManager, SandboxPolicy, SecurityLevel};
 use crate::network::NetworkIsolationManager;
+use crate::sandbox::{SandboxManager, SandboxPolicy, SecurityLevel};
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -38,8 +38,8 @@ pub struct HotPlugEvent {
 
 #[derive(Debug, Clone, Default)]
 pub struct HotPlugIntegration {
-    pub device_driver_map: HashMap<ObjectId, ObjectId>,  // device_id -> driver_id
-    pub driver_device_map: HashMap<ObjectId, Vec<ObjectId>>,  // driver_id -> [device_ids]
+    pub device_driver_map: HashMap<ObjectId, ObjectId>, // device_id -> driver_id
+    pub driver_device_map: HashMap<ObjectId, Vec<ObjectId>>, // driver_id -> [device_ids]
     pub event_queue: Vec<HotPlugEvent>,
     pub event_count: u64,
     pub error_count: u64,
@@ -55,7 +55,7 @@ impl HotPlugIntegration {
         self.device_driver_map.insert(device_id, driver_id);
         self.driver_device_map
             .entry(driver_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(device_id);
     }
 
@@ -136,7 +136,11 @@ impl DriverLifecycleManager {
     }
 
     /// Handle device insertion with driver loading
-    pub fn handle_device_insertion(&mut self, device_id: ObjectId, driver_name: &str) -> Result<()> {
+    pub fn handle_device_insertion(
+        &mut self,
+        device_id: ObjectId,
+        driver_name: &str,
+    ) -> Result<()> {
         // Load driver
         let container = self.loader.load_driver("", driver_name)?;
         let driver_id = container.id;
@@ -146,7 +150,8 @@ impl DriverLifecycleManager {
         self.sandbox_manager.register_policy(sandbox_policy);
 
         // Register in hot-plug system
-        self.hotplug_integration.register_device_driver(device_id, driver_id);
+        self.hotplug_integration
+            .register_device_driver(device_id, driver_id);
 
         // Store container
         self.containers.insert(driver_id, container);
@@ -202,7 +207,10 @@ impl DriverLifecycleManager {
 
             Ok(())
         } else {
-            Err(Error::AllocationFailed(format!("No driver for device {}", device_id)))
+            Err(Error::AllocationFailed(format!(
+                "No driver for device {}",
+                device_id
+            )))
         }
     }
 
@@ -254,7 +262,10 @@ impl DriverLifecycleManager {
         if let Some(container) = self.containers.get(&driver_id) {
             Ok(container.is_operational())
         } else {
-            Err(Error::AllocationFailed(format!("Driver {} not found", driver_id)))
+            Err(Error::AllocationFailed(format!(
+                "Driver {} not found",
+                driver_id
+            )))
         }
     }
 

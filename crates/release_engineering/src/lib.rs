@@ -61,13 +61,19 @@ pub struct ReleaseManager {
     quality_gates: HashMap<String, bool>,
 }
 
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
 impl Version {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Version { major, minor, patch }
-    }
-
-    pub fn to_string(&self) -> String {
-        format!("{}.{}.{}", self.major, self.minor, self.patch)
+        Version {
+            major,
+            minor,
+            patch,
+        }
     }
 
     pub fn bump_major(&self) -> Version {

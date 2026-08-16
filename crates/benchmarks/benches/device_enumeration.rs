@@ -20,10 +20,7 @@ fn benchmark_device_lookup(c: &mut Criterion) {
 
     // Register 100 devices
     for i in 0..100 {
-        let _ = manager.register_device(
-            &format!("pci:0:1:{}", i),
-            "Test Device",
-        );
+        let _ = manager.register_device(&format!("pci:0:1:{}", i), "Test Device");
     }
 
     c.bench_function("lookup_device_hashmap", |b| {
@@ -38,10 +35,7 @@ fn benchmark_device_enumeration(c: &mut Criterion) {
 
     // Register multiple devices
     for i in 0..1000 {
-        let _ = manager.register_device(
-            &format!("pci:0:1:{}", i),
-            "Test Device",
-        );
+        let _ = manager.register_device(&format!("pci:0:1:{}", i), "Test Device");
     }
 
     c.bench_function("enumerate_1000_devices", |b| {
@@ -57,10 +51,7 @@ fn benchmark_driver_matching(c: &mut Criterion) {
 
     // Register devices
     for i in 0..100 {
-        let _ = manager.register_device(
-            &format!("pci:0:1:{}", i),
-            "Test Device",
-        );
+        let _ = manager.register_device(&format!("pci:0:1:{}", i), "Test Device");
     }
 
     c.bench_function("match_drivers_100_devices", |b| {

@@ -51,7 +51,7 @@ impl UnifiedDeviceManager {
 
     pub fn register_gpu_device(&mut self, device_id: ObjectId, name: String) -> Result<()> {
         let state = DeviceState {
-            device_id: device_id.clone(),
+            device_id,
             device_name: name.clone(),
             is_healthy: true,
             error_count: 0,
@@ -64,7 +64,7 @@ impl UnifiedDeviceManager {
 
     pub fn register_audio_device(&mut self, device_id: ObjectId, name: String) -> Result<()> {
         let state = DeviceState {
-            device_id: device_id.clone(),
+            device_id,
             device_name: name.clone(),
             is_healthy: true,
             error_count: 0,
@@ -77,7 +77,7 @@ impl UnifiedDeviceManager {
 
     pub fn register_input_device(&mut self, device_id: ObjectId, name: String) -> Result<()> {
         let state = DeviceState {
-            device_id: device_id.clone(),
+            device_id,
             device_name: name.clone(),
             is_healthy: true,
             error_count: 0,

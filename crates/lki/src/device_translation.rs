@@ -1,8 +1,8 @@
 // SHER LKI: Device Model Translation
 // Maps Linux device/bus/driver registration to SHER primitives
 
-use sher_common::{ObjectId, Result, Error};
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -44,7 +44,7 @@ pub struct PciDevice {
     pub function: u8,
     pub class_code: u32,
     pub revision: u8,
-    pub bar_regions: Vec<(u32, u32)>,  // (address, size)
+    pub bar_regions: Vec<(u32, u32)>, // (address, size)
     pub irq: u32,
     pub enabled: bool,
 }
@@ -201,10 +201,10 @@ impl DeviceBus {
 
 #[derive(Debug, Clone, Default)]
 pub struct DeviceManager {
-    pub pci_devices: HashMap<u32, PciDevice>,  // BDF -> device
-    pub pci_drivers: HashMap<ObjectId, PciDriver>,  // driver_id -> driver
+    pub pci_devices: HashMap<u32, PciDevice>, // BDF -> device
+    pub pci_drivers: HashMap<ObjectId, PciDriver>, // driver_id -> driver
     pub buses: HashMap<ObjectId, DeviceBus>,  // bus_id -> bus
-    pub device_to_driver: HashMap<ObjectId, ObjectId>,  // device_id -> driver_id
+    pub device_to_driver: HashMap<ObjectId, ObjectId>, // device_id -> driver_id
     pub total_devices: u64,
     pub total_drivers: u64,
 }
@@ -215,7 +215,11 @@ impl DeviceManager {
     }
 
     /// Translate pci_driver_register(driver, id_table)
-    pub fn register_pci_driver(&mut self, name: &str, device_ids: Vec<PciDeviceId>) -> Result<ObjectId> {
+    pub fn register_pci_driver(
+        &mut self,
+        name: &str,
+        device_ids: Vec<PciDeviceId>,
+    ) -> Result<ObjectId> {
         let mut driver = PciDriver::new(name);
         for id in device_ids {
             driver.add_device(id);
@@ -238,7 +242,13 @@ impl DeviceManager {
     }
 
     /// Register a PCI device
-    pub fn register_pci_device(&mut self, pci_id: PciDeviceId, bus: u8, slot: u8, func: u8) -> Result<ObjectId> {
+    pub fn register_pci_device(
+        &mut self,
+        pci_id: PciDeviceId,
+        bus: u8,
+        slot: u8,
+        func: u8,
+    ) -> Result<ObjectId> {
         let device = PciDevice::new(pci_id, bus, slot, func);
         let bdf = device.bdf();
         let device_id = device.device_id;
@@ -433,7 +443,7 @@ impl BlockDevice {
 
 #[derive(Debug, Clone, Default)]
 pub struct BlockDeviceManager {
-    pub devices: HashMap<(u32, u32), BlockDevice>,  // (major, minor) -> device
+    pub devices: HashMap<(u32, u32), BlockDevice>, // (major, minor) -> device
     pub total_registered: u64,
 }
 
@@ -521,7 +531,7 @@ impl NetworkDevice {
 
 #[derive(Debug, Clone, Default)]
 pub struct NetworkDeviceManager {
-    pub devices: HashMap<String, NetworkDevice>,  // name -> device
+    pub devices: HashMap<String, NetworkDevice>, // name -> device
     pub total_registered: u64,
 }
 

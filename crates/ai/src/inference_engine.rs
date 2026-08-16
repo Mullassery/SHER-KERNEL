@@ -1,8 +1,8 @@
 // SHER AI Services: Inference Engine
 // Real-time decision making based on learned patterns and predictive models
 
-use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
+use sher_common::ObjectId;
 use std::collections::HashMap;
 
 // ============================================================================
@@ -22,7 +22,7 @@ pub struct InferenceRequest {
     pub request_id: ObjectId,
     pub driver_id: ObjectId,
     pub inference_type: InferenceType,
-    pub context: HashMap<String, f64>,  // Key metrics for inference
+    pub context: HashMap<String, f64>, // Key metrics for inference
     pub timestamp_ms: u64,
 }
 
@@ -73,30 +73,38 @@ impl FeatureVector {
     pub fn from_context(driver_id: ObjectId, context: &HashMap<String, f64>) -> Self {
         let mut features = FeatureVector::new(driver_id);
 
-        features.cpu_usage_normalized = (context.get("cpu_usage").copied().unwrap_or(0.0) / 100.0).min(1.0);
-        features.memory_usage_normalized = (context.get("memory_usage").copied().unwrap_or(0.0) / 100.0).min(1.0);
-        features.io_intensity = (context.get("io_ops_per_sec").copied().unwrap_or(0.0) / 10000.0).min(1.0);
-        features.network_intensity = (context.get("network_throughput").copied().unwrap_or(0.0) / 1000.0).min(1.0);
+        features.cpu_usage_normalized =
+            (context.get("cpu_usage").copied().unwrap_or(0.0) / 100.0).min(1.0);
+        features.memory_usage_normalized =
+            (context.get("memory_usage").copied().unwrap_or(0.0) / 100.0).min(1.0);
+        features.io_intensity =
+            (context.get("io_ops_per_sec").copied().unwrap_or(0.0) / 10000.0).min(1.0);
+        features.network_intensity =
+            (context.get("network_throughput").copied().unwrap_or(0.0) / 1000.0).min(1.0);
         features.anomaly_count = context.get("anomalies").copied().unwrap_or(0.0).min(10.0) / 10.0;
         features.latency_ms = context.get("latency_ms").copied().unwrap_or(0.0);
         features.slo_violation_rate = context.get("slo_violation_rate").copied().unwrap_or(0.0);
-        features.strategy_switches = context.get("strategy_switches").copied().unwrap_or(0.0).min(10.0) / 10.0;
+        features.strategy_switches = context
+            .get("strategy_switches")
+            .copied()
+            .unwrap_or(0.0)
+            .min(10.0)
+            / 10.0;
 
         features
     }
 
     /// Compute L2 norm of feature vector for similarity
     pub fn norm(&self) -> f64 {
-        (
-            self.cpu_usage_normalized.powi(2) +
-            self.memory_usage_normalized.powi(2) +
-            self.io_intensity.powi(2) +
-            self.network_intensity.powi(2) +
-            self.anomaly_count.powi(2) +
-            (self.latency_ms / 100.0).min(1.0).powi(2) +
-            self.slo_violation_rate.powi(2) +
-            self.strategy_switches.powi(2)
-        ).sqrt()
+        (self.cpu_usage_normalized.powi(2)
+            + self.memory_usage_normalized.powi(2)
+            + self.io_intensity.powi(2)
+            + self.network_intensity.powi(2)
+            + self.anomaly_count.powi(2)
+            + (self.latency_ms / 100.0).min(1.0).powi(2)
+            + self.slo_violation_rate.powi(2)
+            + self.strategy_switches.powi(2))
+        .sqrt()
     }
 }
 
@@ -148,7 +156,8 @@ impl InferenceEngine {
             }
         };
 
-        let latency = start_time.elapsed()
+        let latency = start_time
+            .elapsed()
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
 
@@ -196,7 +205,7 @@ impl InferenceEngine {
 
         // CPU quota based on current usage and anomalies
         let cpu_quota = if features.anomaly_count > 0.5 {
-            (features.cpu_usage_normalized * 0.8).min(1.0)  // Reduce if unstable
+            (features.cpu_usage_normalized * 0.8).min(1.0) // Reduce if unstable
         } else {
             (features.cpu_usage_normalized * 1.1).min(1.0)
         };
@@ -211,7 +220,12 @@ impl InferenceEngine {
             (features.anomaly_count * 10.0) as u32
         );
 
-        ("allocate_resources".to_string(), confidence, reasoning, params)
+        (
+            "allocate_resources".to_string(),
+            confidence,
+            reasoning,
+            params,
+        )
     }
 
     fn infer_scheduling_strategy(
@@ -231,8 +245,14 @@ impl InferenceEngine {
             ("balanced", "Normal operation")
         };
 
-        params.insert("strategy_score".to_string(), features.cpu_usage_normalized + features.io_intensity);
-        params.insert("latency_priority".to_string(), (features.latency_ms / 100.0).min(1.0));
+        params.insert(
+            "strategy_score".to_string(),
+            features.cpu_usage_normalized + features.io_intensity,
+        );
+        params.insert(
+            "latency_priority".to_string(),
+            (features.latency_ms / 100.0).min(1.0),
+        );
 
         let confidence = (baseline_confidence * 0.92).max(0.5);
 
@@ -264,8 +284,7 @@ impl InferenceEngine {
         let confidence = (baseline_confidence * (1.0 - features.anomaly_count)).max(0.5);
         let reasoning = format!(
             "Anomaly severity: {} (confidence: {:.2})",
-            severity,
-            confidence
+            severity, confidence
         );
 
         (action.to_string(), confidence, reasoning, params)
@@ -279,9 +298,9 @@ impl InferenceEngine {
         let mut params = HashMap::new();
 
         // Determine optimization priority
-        let optimization_score = features.cpu_usage_normalized +
-                                features.memory_usage_normalized +
-                                features.slo_violation_rate;
+        let optimization_score = features.cpu_usage_normalized
+            + features.memory_usage_normalized
+            + features.slo_violation_rate;
 
         let (action, priority) = if optimization_score > 2.0 {
             ("urgent_optimization", 3)
@@ -294,7 +313,10 @@ impl InferenceEngine {
         };
 
         params.insert("optimization_priority".to_string(), priority as f64);
-        params.insert("improvement_target".to_string(), (optimization_score * 0.15).min(0.5));
+        params.insert(
+            "improvement_target".to_string(),
+            (optimization_score * 0.15).min(0.5),
+        );
 
         let confidence = (baseline_confidence * 0.90).max(0.5);
         let reasoning = format!(

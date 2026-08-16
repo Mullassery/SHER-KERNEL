@@ -3,26 +3,57 @@
 //! Records all kernel operations (allocations, driver loads, interrupts, etc.)
 //! for later replay and analysis.
 
+use sher_common::{ObjectId, Result};
 use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
-use sher_common::{ObjectId, Result};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EventType {
-    MemoryAllocate { size: usize },
-    MemoryDeallocate { size: usize },
-    DriverLoad { driver_id: String },
-    DriverUnload { driver_id: String },
-    InterruptRaised { irq: usize },
-    InterruptHandled { irq: usize },
-    DeviceDiscovered { device_id: String },
-    DeviceRemoved { device_id: String },
-    CapabilityGranted { driver_id: String, capability: String },
-    CapabilityRevoked { driver_id: String, capability: String },
-    SchedulingDecision { workload_type: String },
-    AnomalyDetected { anomaly_type: String },
-    CrashRecovery { driver_id: String },
-    PerformanceMetric { metric_name: String, value: f64 },
+    MemoryAllocate {
+        size: usize,
+    },
+    MemoryDeallocate {
+        size: usize,
+    },
+    DriverLoad {
+        driver_id: String,
+    },
+    DriverUnload {
+        driver_id: String,
+    },
+    InterruptRaised {
+        irq: usize,
+    },
+    InterruptHandled {
+        irq: usize,
+    },
+    DeviceDiscovered {
+        device_id: String,
+    },
+    DeviceRemoved {
+        device_id: String,
+    },
+    CapabilityGranted {
+        driver_id: String,
+        capability: String,
+    },
+    CapabilityRevoked {
+        driver_id: String,
+        capability: String,
+    },
+    SchedulingDecision {
+        workload_type: String,
+    },
+    AnomalyDetected {
+        anomaly_type: String,
+    },
+    CrashRecovery {
+        driver_id: String,
+    },
+    PerformanceMetric {
+        metric_name: String,
+        value: f64,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -53,7 +84,12 @@ impl EventLog {
         }
     }
 
-    pub fn record_event(&mut self, event_type: EventType, cpu_id: usize, context_id: Option<ObjectId>) -> Result<()> {
+    pub fn record_event(
+        &mut self,
+        event_type: EventType,
+        cpu_id: usize,
+        context_id: Option<ObjectId>,
+    ) -> Result<()> {
         if !self.enabled {
             return Ok(());
         }
@@ -81,29 +117,37 @@ impl EventLog {
     }
 
     pub fn get_event_range(&self, start_seq: u64, end_seq: u64) -> Vec<KernelEvent> {
-        self.events.iter()
+        self.events
+            .iter()
             .filter(|e| e.sequence >= start_seq && e.sequence <= end_seq)
             .cloned()
             .collect()
     }
 
     pub fn filter_by_event_type(&self, event_type: EventType) -> Vec<KernelEvent> {
-        self.events.iter()
-            .filter(|e| std::mem::discriminant(&e.event_type) == std::mem::discriminant(&event_type))
+        self.events
+            .iter()
+            .filter(|e| {
+                std::mem::discriminant(&e.event_type) == std::mem::discriminant(&event_type)
+            })
             .cloned()
             .collect()
     }
 
     pub fn filter_by_cpu(&self, cpu_id: usize) -> Vec<KernelEvent> {
-        self.events.iter()
+        self.events
+            .iter()
             .filter(|e| e.cpu_id == cpu_id)
             .cloned()
             .collect()
     }
 
     pub fn filter_by_time_range(&self, start_ms: u64, end_ms: u64) -> Vec<KernelEvent> {
-        self.events.iter()
-            .filter(|e| e.timestamp >= self.start_time + start_ms && e.timestamp <= self.start_time + end_ms)
+        self.events
+            .iter()
+            .filter(|e| {
+                e.timestamp >= self.start_time + start_ms && e.timestamp <= self.start_time + end_ms
+            })
             .cloned()
             .collect()
     }
@@ -141,32 +185,43 @@ impl EventLog {
                 EventType::DriverUnload { driver_id } => format!("DriverUnload({})", driver_id),
                 EventType::InterruptRaised { irq } => format!("InterruptRaised({})", irq),
                 EventType::InterruptHandled { irq } => format!("InterruptHandled({})", irq),
-                EventType::DeviceDiscovered { device_id } => format!("DeviceDiscovered({})", device_id),
+                EventType::DeviceDiscovered { device_id } => {
+                    format!("DeviceDiscovered({})", device_id)
+                }
                 EventType::DeviceRemoved { device_id } => format!("DeviceRemoved({})", device_id),
-                EventType::CapabilityGranted { driver_id, capability } => {
+                EventType::CapabilityGranted {
+                    driver_id,
+                    capability,
+                } => {
                     format!("CapabilityGranted({},{})", driver_id, capability)
                 }
-                EventType::CapabilityRevoked { driver_id, capability } => {
+                EventType::CapabilityRevoked {
+                    driver_id,
+                    capability,
+                } => {
                     format!("CapabilityRevoked({},{})", driver_id, capability)
                 }
-                EventType::SchedulingDecision { workload_type } => format!("SchedulingDecision({})", workload_type),
-                EventType::AnomalyDetected { anomaly_type } => format!("AnomalyDetected({})", anomaly_type),
+                EventType::SchedulingDecision { workload_type } => {
+                    format!("SchedulingDecision({})", workload_type)
+                }
+                EventType::AnomalyDetected { anomaly_type } => {
+                    format!("AnomalyDetected({})", anomaly_type)
+                }
                 EventType::CrashRecovery { driver_id } => format!("CrashRecovery({})", driver_id),
                 EventType::PerformanceMetric { metric_name, value } => {
                     format!("PerformanceMetric({},{})", metric_name, value)
                 }
             };
 
-            let context_str = event.context_id.as_ref()
+            let context_str = event
+                .context_id
+                .as_ref()
                 .map(|id| id.to_string())
                 .unwrap_or_else(|| "None".to_string());
 
-            csv.push_str(&format!("{},{},{},{},{}\n",
-                event.timestamp,
-                event.sequence,
-                event_str,
-                event.cpu_id,
-                context_str
+            csv.push_str(&format!(
+                "{},{},{},{},{}\n",
+                event.timestamp, event.sequence, event_str, event.cpu_id, context_str
             ));
         }
 

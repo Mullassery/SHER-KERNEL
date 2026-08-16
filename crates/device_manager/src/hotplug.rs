@@ -1,8 +1,8 @@
 // SHER Device Manager: Hot-Plug Support
 // Handles dynamic device insertion, removal, and recovery
 
-use crate::{RegisteredDevice, DeviceState, DeviceRegistry};
-use sher_common::{ObjectId, Result, Error};
+use crate::{DeviceRegistry, DeviceState, RegisteredDevice};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
@@ -37,7 +37,7 @@ impl DeviceEvent {
             event_type,
             device_id,
             device_name,
-            timestamp: 0,  // Would be set to current time in production
+            timestamp: 0, // Would be set to current time in production
             details: None,
         }
     }
@@ -101,11 +101,7 @@ impl HotPlugManager {
             return Err(Error::AllocationFailed("Hot-plug disabled".to_string()));
         }
 
-        let event = DeviceEvent::new(
-            DeviceEventType::Inserted,
-            device.id,
-            device.name.clone(),
-        );
+        let event = DeviceEvent::new(DeviceEventType::Inserted, device.id, device.name.clone());
 
         self.event_queue.push_back(event.clone());
         self.emit_event(&event);
@@ -117,16 +113,16 @@ impl HotPlugManager {
     }
 
     /// Handle device removal
-    pub fn handle_device_removal(&mut self, device_id: ObjectId, device_name: String) -> Result<()> {
+    pub fn handle_device_removal(
+        &mut self,
+        device_id: ObjectId,
+        device_name: String,
+    ) -> Result<()> {
         if !self.enabled {
             return Err(Error::AllocationFailed("Hot-plug disabled".to_string()));
         }
 
-        let event = DeviceEvent::new(
-            DeviceEventType::Removed,
-            device_id,
-            device_name,
-        );
+        let event = DeviceEvent::new(DeviceEventType::Removed, device_id, device_name);
 
         self.event_queue.push_back(event.clone());
         self.emit_event(&event);
@@ -136,7 +132,11 @@ impl HotPlugManager {
     }
 
     /// Gracefully shutdown device
-    pub fn graceful_shutdown(&mut self, registry: &mut DeviceRegistry, device_id: ObjectId) -> Result<()> {
+    pub fn graceful_shutdown(
+        &mut self,
+        registry: &mut DeviceRegistry,
+        device_id: ObjectId,
+    ) -> Result<()> {
         // Get device name before mutation
         let device_name = if let Some(device) = registry.get_device(device_id) {
             device.name.clone()
@@ -145,15 +145,17 @@ impl HotPlugManager {
         };
 
         // Transition to removing state
-        registry.update_device_state(device_id, DeviceState::Removing)
-            .map_err(|e| Error::AllocationFailed(e))?;
+        registry
+            .update_device_state(device_id, DeviceState::Removing)
+            .map_err(Error::AllocationFailed)?;
 
         // Drain I/O operations (simulated - in production would wait for actual I/O)
         // ... wait for I/O ...
 
         // Transition to removed state
-        registry.update_device_state(device_id, DeviceState::Removed)
-            .map_err(|e| Error::AllocationFailed(e))?;
+        registry
+            .update_device_state(device_id, DeviceState::Removed)
+            .map_err(Error::AllocationFailed)?;
 
         let event = DeviceEvent::new(DeviceEventType::Disconnected, device_id, device_name);
 
@@ -165,8 +167,6 @@ impl HotPlugManager {
 
     /// Re-enumerate devices (after insertion/removal)
     pub fn reenumerate(&mut self, registry: &mut DeviceRegistry) -> Result<usize> {
-        let mut reenumerated_count = 0;
-
         // Clear pending devices that successfully loaded
         self.pending_devices.clear();
 
@@ -175,19 +175,31 @@ impl HotPlugManager {
         self.removed_devices.clear();
 
         // Count operational devices
-        reenumerated_count = registry.get_operational_count();
+        let reenumerated_count = registry.get_operational_count();
 
         Ok(reenumerated_count)
     }
 
     /// Check and handle recovery of failed devices
-    pub fn check_recovery(&mut self, registry: &mut DeviceRegistry, device_id: ObjectId) -> Result<bool> {
+    pub fn check_recovery(
+        &mut self,
+        registry: &mut DeviceRegistry,
+        device_id: ObjectId,
+    ) -> Result<bool> {
         // Check current state and error count
-        let (is_error, error_count, device_name) = if let Some(device) = registry.get_device(device_id) {
-            (device.state == DeviceState::Error, device.telemetry.total_errors, device.name.clone())
-        } else {
-            return Err(Error::AllocationFailed(format!("Device {} not found", device_id)));
-        };
+        let (is_error, error_count, device_name) =
+            if let Some(device) = registry.get_device(device_id) {
+                (
+                    device.state == DeviceState::Error,
+                    device.telemetry.total_errors,
+                    device.name.clone(),
+                )
+            } else {
+                return Err(Error::AllocationFailed(format!(
+                    "Device {} not found",
+                    device_id
+                )));
+            };
 
         if is_error {
             // Attempt recovery
@@ -195,12 +207,12 @@ impl HotPlugManager {
 
             if error_count < self.max_reconnect_attempts as u64 {
                 // Try to recover
-                if let Ok(_) = registry.update_device_state(device_id, DeviceState::Initialized) {
-                    let event = DeviceEvent::new(
-                        DeviceEventType::Recovered,
-                        device_id,
-                        device_name,
-                    );
+                if registry
+                    .update_device_state(device_id, DeviceState::Initialized)
+                    .is_ok()
+                {
+                    let event =
+                        DeviceEvent::new(DeviceEventType::Recovered, device_id, device_name);
                     self.event_queue.push_back(event.clone());
                     self.emit_event(&event);
                     recovered = true;
@@ -235,7 +247,9 @@ impl HotPlugManager {
     fn emit_event(&self, event: &DeviceEvent) {
         // Emit to all matching subscriptions
         for subscription in &self.subscriptions {
-            if subscription.event_type == event.event_type || subscription.event_type == DeviceEventType::StateChanged {
+            if subscription.event_type == event.event_type
+                || subscription.event_type == DeviceEventType::StateChanged
+            {
                 (subscription.callback)(event);
             }
         }
@@ -301,7 +315,7 @@ impl RecoveryManager {
     pub fn record_recovery_attempt(&mut self, device_id: ObjectId) {
         let attempts = self.recovery_attempts.entry(device_id).or_insert(0);
         *attempts += 1;
-        self.last_recovery_time.insert(device_id, 0);  // Would be current time
+        self.last_recovery_time.insert(device_id, 0); // Would be current time
     }
 
     pub fn reset_recovery(&mut self, device_id: ObjectId) {
@@ -336,32 +350,42 @@ impl HotPlugController {
     pub fn new() -> Self {
         HotPlugController {
             hotplug_manager: Arc::new(StdMutex::new(HotPlugManager::new())),
-            recovery_manager: Arc::new(StdMutex::new(RecoveryManager::new(RecoveryPolicy::default()))),
+            recovery_manager: Arc::new(StdMutex::new(RecoveryManager::new(
+                RecoveryPolicy::default(),
+            ))),
         }
     }
 
     pub fn enable_hotplug(&self) -> Result<()> {
-        let mut manager = self.hotplug_manager.lock()
+        let mut manager = self
+            .hotplug_manager
+            .lock()
             .map_err(|_| Error::AllocationFailed("Cannot lock hot-plug manager".to_string()))?;
         manager.enabled = true;
         Ok(())
     }
 
     pub fn disable_hotplug(&self) -> Result<()> {
-        let mut manager = self.hotplug_manager.lock()
+        let mut manager = self
+            .hotplug_manager
+            .lock()
             .map_err(|_| Error::AllocationFailed("Cannot lock hot-plug manager".to_string()))?;
         manager.enabled = false;
         Ok(())
     }
 
     pub fn insert_device(&self, device: RegisteredDevice) -> Result<()> {
-        let mut manager = self.hotplug_manager.lock()
+        let mut manager = self
+            .hotplug_manager
+            .lock()
             .map_err(|_| Error::AllocationFailed("Cannot lock hot-plug manager".to_string()))?;
         manager.handle_device_insertion(device)
     }
 
     pub fn remove_device(&self, device_id: ObjectId, device_name: String) -> Result<()> {
-        let mut manager = self.hotplug_manager.lock()
+        let mut manager = self
+            .hotplug_manager
+            .lock()
             .map_err(|_| Error::AllocationFailed("Cannot lock hot-plug manager".to_string()))?;
         manager.handle_device_removal(device_id, device_name)
     }

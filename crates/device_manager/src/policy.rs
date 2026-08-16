@@ -76,15 +76,15 @@ impl Default for DevicePolicy {
 pub struct DriverMatch {
     pub driver_id: String,
     pub match_type: MatchType,
-    pub confidence: f64,  // 0.0-1.0
+    pub confidence: f64, // 0.0-1.0
     pub native: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatchType {
-    ExactVendorDevice,  // VendorID + DeviceID exact match
-    ClassCode,          // Class/subclass match
-    Generic,            // Generic class driver
+    ExactVendorDevice, // VendorID + DeviceID exact match
+    ClassCode,         // Class/subclass match
+    Generic,           // Generic class driver
 }
 
 impl MatchType {
@@ -100,8 +100,8 @@ impl MatchType {
 #[derive(Debug, Clone, Default)]
 pub struct DriverDatabase {
     pub drivers: HashMap<String, DriverEntry>,
-    pub vendor_device_map: HashMap<(u16, u16), Vec<String>>,  // (vendor, device) -> [driver_ids]
-    pub class_map: HashMap<(u8, u8), Vec<String>>,  // (class, subclass) -> [driver_ids]
+    pub vendor_device_map: HashMap<(u16, u16), Vec<String>>, // (vendor, device) -> [driver_ids]
+    pub class_map: HashMap<(u8, u8), Vec<String>>,           // (class, subclass) -> [driver_ids]
 }
 
 #[derive(Debug, Clone)]
@@ -132,14 +132,14 @@ impl DriverDatabase {
         if let (Some(vendor), Some(device)) = (driver.vendor_id, driver.device_id) {
             self.vendor_device_map
                 .entry((vendor, device))
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(driver_id.clone());
         }
 
         if let (Some(class), Some(subclass)) = (driver.device_class, driver.device_subclass) {
             self.class_map
                 .entry((class, subclass))
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(driver_id.clone());
         }
 
@@ -149,22 +149,14 @@ impl DriverDatabase {
     pub fn find_exact_match(&self, vendor: u16, device: u16) -> Vec<&DriverEntry> {
         self.vendor_device_map
             .get(&(vendor, device))
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.drivers.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.drivers.get(id)).collect())
             .unwrap_or_default()
     }
 
     pub fn find_class_match(&self, class: u8, subclass: u8) -> Vec<&DriverEntry> {
         self.class_map
             .get(&(class, subclass))
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.drivers.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.drivers.get(id)).collect())
             .unwrap_or_default()
     }
 }
@@ -186,8 +178,13 @@ impl DriverMatcher {
         }
     }
 
-    pub fn find_best_match(&self, vendor: u16, device: u16,
-                          class: u8, subclass: u8) -> Option<DriverMatch> {
+    pub fn find_best_match(
+        &self,
+        vendor: u16,
+        device: u16,
+        class: u8,
+        subclass: u8,
+    ) -> Option<DriverMatch> {
         let mut candidates: Vec<(DriverEntry, MatchType, u8)> = Vec::new();
 
         // Try exact vendor/device match first
@@ -212,8 +209,8 @@ impl DriverMatcher {
             }
         }
 
-        // Sort by priority
-        candidates.sort_by(|a, b| b.2.cmp(&a.2));
+        // Sort by priority (descending)
+        candidates.sort_by_key(|c| std::cmp::Reverse(c.2));
 
         // Return best match
         candidates.first().map(|(driver, match_type, priority)| {

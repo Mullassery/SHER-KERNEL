@@ -1,8 +1,8 @@
 // SHER LKI: Security & Capability System
 // Time-bounded capability grants with zero-trust enforcement
 
-use sher_common::{ObjectId, Result, Error};
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -61,10 +61,10 @@ pub enum PermissionTier {
 impl PermissionTier {
     pub fn max_duration_ms(&self) -> u64 {
         match self {
-            PermissionTier::Low => 3_600_000,        // 1 hour
-            PermissionTier::Medium => 86_400_000,    // 24 hours
-            PermissionTier::High => 7_200_000,       // 2 hours
-            PermissionTier::Critical => 1_800_000,   // 30 minutes
+            PermissionTier::Low => 3_600_000,      // 1 hour
+            PermissionTier::Medium => 86_400_000,  // 24 hours
+            PermissionTier::High => 7_200_000,     // 2 hours
+            PermissionTier::Critical => 1_800_000, // 30 minutes
         }
     }
 
@@ -126,7 +126,10 @@ impl CapabilityGrant {
     pub fn with_duration(mut self, duration_ms: u64) -> Result<Self> {
         let max = self.tier.max_duration_ms();
         if duration_ms > max {
-            return Err(Error::Driver(format!("Duration exceeds tier limit of {}ms", max)));
+            return Err(Error::Driver(format!(
+                "Duration exceeds tier limit of {}ms",
+                max
+            )));
         }
         self.expires_at_ms = self.granted_at_ms + duration_ms;
         Ok(self)
@@ -152,11 +155,7 @@ impl CapabilityGrant {
     }
 
     pub fn time_remaining_ms(&self, current_time_ms: u64) -> u64 {
-        if current_time_ms >= self.expires_at_ms {
-            0
-        } else {
-            self.expires_at_ms - current_time_ms
-        }
+        self.expires_at_ms.saturating_sub(current_time_ms)
     }
 
     pub fn lifetime_ms(&self) -> u64 {
@@ -170,7 +169,7 @@ impl CapabilityGrant {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CapabilityManager {
-    pub grants: HashMap<ObjectId, Vec<CapabilityGrant>>,  // driver_id -> grants
+    pub grants: HashMap<ObjectId, Vec<CapabilityGrant>>, // driver_id -> grants
     pub total_grants: u64,
     pub expired_grants: u64,
     pub revoked_grants: u64,
@@ -187,14 +186,13 @@ impl CapabilityManager {
         // Validate tier duration
         let max = grant.tier.max_duration_ms();
         if grant.lifetime_ms() > max {
-            return Err(Error::Driver(format!("Capability lifetime exceeds tier limit")));
+            return Err(Error::Driver(
+                "Capability lifetime exceeds tier limit".to_string(),
+            ));
         }
 
         let grant_id = grant.grant_id;
-        self.grants
-            .entry(grant.driver_id)
-            .or_insert_with(Vec::new)
-            .push(grant);
+        self.grants.entry(grant.driver_id).or_default().push(grant);
         self.total_grants += 1;
 
         Ok(grant_id)
@@ -212,13 +210,20 @@ impl CapabilityManager {
     }
 
     /// Check if driver has capability (with expiry check)
-    pub fn has_capability(&mut self, driver_id: ObjectId, capability: Capability, current_time_ms: u64) -> bool {
+    pub fn has_capability(
+        &mut self,
+        driver_id: ObjectId,
+        capability: Capability,
+        current_time_ms: u64,
+    ) -> bool {
         if let Some(grants) = self.grants.get_mut(&driver_id) {
             // Remove expired grants
             grants.retain(|g| !g.is_expired(current_time_ms));
 
             // Check for valid grant
-            grants.iter().any(|g| g.capability == capability && g.is_valid(current_time_ms))
+            grants
+                .iter()
+                .any(|g| g.capability == capability && g.is_valid(current_time_ms))
         } else {
             false
         }
@@ -236,12 +241,15 @@ impl CapabilityManager {
             grants.retain(|g| !g.is_expired(current_time_ms));
 
             // Find grant
-            if let Some(grant) = grants.iter().find(|g| g.capability == capability && g.is_valid(current_time_ms)) {
+            if let Some(grant) = grants
+                .iter()
+                .find(|g| g.capability == capability && g.is_valid(current_time_ms))
+            {
                 if grant.reauth_required {
                     self.reauth_requests += 1;
-                    return Ok(true);  // Reauthentication required
+                    return Ok(true); // Reauthentication required
                 }
-                return Ok(false);  // No reauthentication needed
+                return Ok(false); // No reauthentication needed
             }
         }
 
@@ -258,7 +266,11 @@ impl CapabilityManager {
     }
 
     /// Get active grants for driver
-    pub fn get_active_grants(&self, driver_id: ObjectId, current_time_ms: u64) -> Vec<&CapabilityGrant> {
+    pub fn get_active_grants(
+        &self,
+        driver_id: ObjectId,
+        current_time_ms: u64,
+    ) -> Vec<&CapabilityGrant> {
         if let Some(grants) = self.grants.get(&driver_id) {
             grants
                 .iter()
@@ -278,7 +290,11 @@ impl CapabilityManager {
     }
 
     /// Get expiring grants (< threshold_ms)
-    pub fn get_expiring_grants(&self, current_time_ms: u64, threshold_ms: u64) -> Vec<&CapabilityGrant> {
+    pub fn get_expiring_grants(
+        &self,
+        current_time_ms: u64,
+        threshold_ms: u64,
+    ) -> Vec<&CapabilityGrant> {
         self.grants
             .values()
             .flat_map(|grants| grants.iter())
@@ -329,11 +345,11 @@ pub struct SecurityPolicy {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SecurityLevel {
-    Unrestricted,  // No policy (dangerous)
-    Permissive,    // Allow by default, audit denials
-    Balanced,      // Allow known operations, deny unknown
-    Strict,        // Deny by default, explicit allowlist
-    Critical,      // Maximum restrictions
+    Unrestricted, // No policy (dangerous)
+    Permissive,   // Allow by default, audit denials
+    Balanced,     // Allow known operations, deny unknown
+    Strict,       // Deny by default, explicit allowlist
+    Critical,     // Maximum restrictions
 }
 
 impl SecurityPolicy {
@@ -349,7 +365,10 @@ impl SecurityPolicy {
                 SecurityLevel::Strict => PermissionTier::Medium,
                 SecurityLevel::Critical => PermissionTier::Low,
             },
-            require_reauth_for_critical: matches!(level, SecurityLevel::Strict | SecurityLevel::Critical),
+            require_reauth_for_critical: matches!(
+                level,
+                SecurityLevel::Strict | SecurityLevel::Critical
+            ),
             auto_revoke_on_error: matches!(level, SecurityLevel::Critical),
             audit_all_operations: matches!(level, SecurityLevel::Strict | SecurityLevel::Critical),
         }

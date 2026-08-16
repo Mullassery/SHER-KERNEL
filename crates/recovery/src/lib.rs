@@ -8,13 +8,14 @@
 //! Driver crashes → Automatic recovery with exponential backoff
 //! System degrades gracefully under failure
 
-pub mod partition;
 pub mod bootptr;
-pub mod healthcheck;
 pub mod crash_recovery;
+pub mod healthcheck;
+pub mod partition;
 pub mod watchdog;
 
-pub use partition::ImmutablePartition;
-pub use bootptr::BootPointer;
-pub use crash_recovery::{CrashRecoveryManager, RecoveryPolicy, RecoveryState, CrashMetrics};
-pub use watchdog::{Watchdog, HealthStatus, WatchdogStats, HeartbeatRecord};
+pub use bootptr::{BootPointer, BootSwitch};
+pub use crash_recovery::{CrashMetrics, CrashRecoveryManager, RecoveryPolicy, RecoveryState};
+pub use healthcheck::{check as run_healthcheck, check_default, HealthCheckReport, ProbeResult};
+pub use partition::{ImmutablePartition, PartitionSlot};
+pub use watchdog::{HealthStatus, HeartbeatRecord, Watchdog, WatchdogStats};

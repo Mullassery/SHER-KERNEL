@@ -1,8 +1,8 @@
 // SHER AI Services: Continuous Learning System
 // Real-time learning from runtime observations and optimization feedback
 
-use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
+use sher_common::ObjectId;
 use std::collections::{HashMap, VecDeque};
 
 // ============================================================================
@@ -25,7 +25,7 @@ pub struct RuntimeObservation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationResult {
     pub driver_id: ObjectId,
-    pub change_type: String,           // e.g., "cpu_affinity", "memory_limit"
+    pub change_type: String, // e.g., "cpu_affinity", "memory_limit"
     pub before_metric: f64,
     pub after_metric: f64,
     pub improvement_percent: f64,
@@ -56,7 +56,7 @@ pub struct DriverBehaviorModel {
     pub io_latency_correlation: f64,
 
     // Trend analysis
-    pub cpu_trend: f64,                 // -1.0 to 1.0, negative = decreasing
+    pub cpu_trend: f64, // -1.0 to 1.0, negative = decreasing
     pub memory_trend: f64,
     pub latency_trend: f64,
 
@@ -101,7 +101,8 @@ impl DriverBehaviorModel {
         // Update moving averages
         let alpha = 0.1;
         self.avg_cpu_usage = self.avg_cpu_usage * (1.0 - alpha) + observation.cpu_usage * alpha;
-        self.avg_memory_usage = self.avg_memory_usage * (1.0 - alpha) + observation.memory_usage * alpha;
+        self.avg_memory_usage =
+            self.avg_memory_usage * (1.0 - alpha) + observation.memory_usage * alpha;
         self.avg_latency_ms = self.avg_latency_ms * (1.0 - alpha) + observation.latency_ms * alpha;
 
         self.samples += 1;
@@ -147,16 +148,30 @@ impl DriverBehaviorModel {
         // Simple linear trend: compare first third vs last third
         let third = obs.len() / 3;
         let first_third_avg = obs[..third].iter().map(|o| o.cpu_usage).sum::<f64>() / third as f64;
-        let last_third_avg = obs[obs.len() - third..].iter().map(|o| o.cpu_usage).sum::<f64>() / third as f64;
+        let last_third_avg = obs[obs.len() - third..]
+            .iter()
+            .map(|o| o.cpu_usage)
+            .sum::<f64>()
+            / third as f64;
         self.cpu_trend = ((last_third_avg - first_third_avg) / first_third_avg).clamp(-1.0, 1.0);
 
-        let first_third_avg = obs[..third].iter().map(|o| o.memory_usage).sum::<f64>() / third as f64;
-        let last_third_avg = obs[obs.len() - third..].iter().map(|o| o.memory_usage).sum::<f64>() / third as f64;
+        let first_third_avg =
+            obs[..third].iter().map(|o| o.memory_usage).sum::<f64>() / third as f64;
+        let last_third_avg = obs[obs.len() - third..]
+            .iter()
+            .map(|o| o.memory_usage)
+            .sum::<f64>()
+            / third as f64;
         self.memory_trend = ((last_third_avg - first_third_avg) / first_third_avg).clamp(-1.0, 1.0);
 
         let first_third_avg = obs[..third].iter().map(|o| o.latency_ms).sum::<f64>() / third as f64;
-        let last_third_avg = obs[obs.len() - third..].iter().map(|o| o.latency_ms).sum::<f64>() / third as f64;
-        self.latency_trend = ((last_third_avg - first_third_avg) / first_third_avg).clamp(-1.0, 1.0);
+        let last_third_avg = obs[obs.len() - third..]
+            .iter()
+            .map(|o| o.latency_ms)
+            .sum::<f64>()
+            / third as f64;
+        self.latency_trend =
+            ((last_third_avg - first_third_avg) / first_third_avg).clamp(-1.0, 1.0);
     }
 
     /// Predict next CPU usage based on trend
@@ -180,9 +195,9 @@ impl DriverBehaviorModel {
         let lat_deviation = (observation.latency_ms - self.avg_latency_ms).abs();
 
         // Consider anomalous if deviation is > 2x average
-        cpu_deviation > self.avg_cpu_usage * 2.0 ||
-            mem_deviation > self.avg_memory_usage * 2.0 ||
-            lat_deviation > self.avg_latency_ms * 2.0
+        cpu_deviation > self.avg_cpu_usage * 2.0
+            || mem_deviation > self.avg_memory_usage * 2.0
+            || lat_deviation > self.avg_latency_ms * 2.0
     }
 }
 
@@ -195,10 +210,12 @@ fn calculate_correlation(x: Vec<f64>, y: Vec<f64>) -> f64 {
     let x_mean = x.iter().sum::<f64>() / n;
     let y_mean = y.iter().sum::<f64>() / n;
 
-    let covariance = x.iter()
+    let covariance = x
+        .iter()
         .zip(y.iter())
         .map(|(xi, yi)| (xi - x_mean) * (yi - y_mean))
-        .sum::<f64>() / n;
+        .sum::<f64>()
+        / n;
 
     let x_var = x.iter().map(|xi| (xi - x_mean).powi(2)).sum::<f64>() / n;
     let y_var = y.iter().map(|yi| (yi - y_mean).powi(2)).sum::<f64>() / n;
@@ -235,7 +252,8 @@ impl ContinuousLearningEngine {
     pub fn observe(&mut self, observation: RuntimeObservation) {
         let driver_id = observation.driver_id;
 
-        let model = self.behavior_models
+        let model = self
+            .behavior_models
             .entry(driver_id)
             .or_insert_with(|| DriverBehaviorModel::new(driver_id));
 
@@ -259,11 +277,15 @@ impl ContinuousLearningEngine {
 
     /// Get drivers sorted by anomaly risk (based on learned deviations)
     pub fn get_high_risk_drivers(&self) -> Vec<(ObjectId, f64)> {
-        let mut drivers: Vec<_> = self.behavior_models
+        let mut drivers: Vec<_> = self
+            .behavior_models
             .iter()
             .filter_map(|(id, model)| {
                 if model.samples > 10 {
-                    let risk = (model.cpu_trend.abs() + model.memory_trend.abs() + model.latency_trend.abs()) / 3.0;
+                    let risk = (model.cpu_trend.abs()
+                        + model.memory_trend.abs()
+                        + model.latency_trend.abs())
+                        / 3.0;
                     Some((*id, risk))
                 } else {
                     None
@@ -278,7 +300,8 @@ impl ContinuousLearningEngine {
     /// Get optimization effectiveness
     pub fn get_optimization_stats(&self) -> OptimizationStats {
         let total_optimizations = self.optimization_history.len() as u64;
-        let successful = self.optimization_history
+        let successful = self
+            .optimization_history
             .iter()
             .filter(|o| o.improvement_percent > 0.0)
             .count() as u64;
@@ -289,7 +312,8 @@ impl ContinuousLearningEngine {
             self.optimization_history
                 .iter()
                 .map(|o| o.improvement_percent)
-                .sum::<f64>() / self.optimization_history.len() as f64
+                .sum::<f64>()
+                / self.optimization_history.len() as f64
         };
 
         OptimizationStats {
@@ -314,9 +338,11 @@ impl ContinuousLearningEngine {
             avg_model_confidence: if self.behavior_models.is_empty() {
                 0.0
             } else {
-                self.behavior_models.values()
+                self.behavior_models
+                    .values()
                     .map(|m| (m.samples as f64 / 100.0).min(1.0))
-                    .sum::<f64>() / self.behavior_models.len() as f64
+                    .sum::<f64>()
+                    / self.behavior_models.len() as f64
             },
         }
     }

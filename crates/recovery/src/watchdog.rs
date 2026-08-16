@@ -6,9 +6,9 @@
 //! - Resource exhaustion alerts
 //! - Automatic escalation
 
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use sher_common::{ObjectId, Result};
+use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum HealthStatus {
@@ -26,11 +26,14 @@ pub struct HeartbeatRecord {
     pub status: HealthStatus,
 }
 
+/// Callback invoked when a driver's health status changes.
+type AlertCallback = Box<dyn Fn(&ObjectId, &HealthStatus)>;
+
 pub struct Watchdog {
     heartbeats: HashMap<ObjectId, HeartbeatRecord>,
     heartbeat_timeout_ms: u64,
     max_consecutive_misses: u32,
-    alert_callbacks: Vec<Box<dyn Fn(&ObjectId, &HealthStatus)>>,
+    alert_callbacks: Vec<AlertCallback>,
 }
 
 impl Watchdog {
@@ -87,7 +90,10 @@ impl Watchdog {
                 }
             }
 
-            self.heartbeats.get(driver_id).map(|r| r.status.clone()).unwrap_or(status_before)
+            self.heartbeats
+                .get(driver_id)
+                .map(|r| r.status.clone())
+                .unwrap_or(status_before)
         } else {
             HealthStatus::Unresponsive
         }
@@ -136,16 +142,24 @@ impl Watchdog {
 
     pub fn get_statistics(&self) -> WatchdogStats {
         let total = self.heartbeats.len();
-        let healthy = self.heartbeats.values()
+        let healthy = self
+            .heartbeats
+            .values()
             .filter(|r| r.status == HealthStatus::Healthy)
             .count();
-        let degraded = self.heartbeats.values()
+        let degraded = self
+            .heartbeats
+            .values()
             .filter(|r| r.status == HealthStatus::Degraded)
             .count();
-        let critical = self.heartbeats.values()
+        let critical = self
+            .heartbeats
+            .values()
             .filter(|r| r.status == HealthStatus::CriticalAlert)
             .count();
-        let unresponsive = self.heartbeats.values()
+        let unresponsive = self
+            .heartbeats
+            .values()
             .filter(|r| r.status == HealthStatus::Unresponsive)
             .count();
 
@@ -155,7 +169,11 @@ impl Watchdog {
             degraded_count: degraded,
             critical_count: critical,
             unresponsive_count: unresponsive,
-            health_percentage: if total > 0 { (healthy as f64 / total as f64) * 100.0 } else { 100.0 },
+            health_percentage: if total > 0 {
+                (healthy as f64 / total as f64) * 100.0
+            } else {
+                100.0
+            },
         }
     }
 }
@@ -173,6 +191,7 @@ pub struct WatchdogStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn test_heartbeat_registration() {

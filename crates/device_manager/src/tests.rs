@@ -32,7 +32,7 @@ mod tests {
 
         let bridge = enumerator.find_by_vendor_device(0x8086, 0x0100);
         assert!(bridge.is_some(), "Should find Intel host bridge");
-        assert_eq!(bridge.unwrap().class_code, 0x06);  // Bridge
+        assert_eq!(bridge.unwrap().class_code, 0x06); // Bridge
     }
 
     #[test]
@@ -42,7 +42,7 @@ mod tests {
 
         let ethernet = enumerator.find_by_vendor_device(0x8086, 0x1234);
         assert!(ethernet.is_some(), "Should find ethernet controller");
-        assert_eq!(ethernet.unwrap().class_code, 0x02);  // Network
+        assert_eq!(ethernet.unwrap().class_code, 0x02); // Network
     }
 
     #[test]
@@ -50,7 +50,7 @@ mod tests {
         let mut enumerator = PciEnumerator::new();
         enumerator.enumerate().expect("Enumeration failed");
 
-        let bridges = enumerator.find_by_class(0x06, 0x00);  // Class 6, Subclass 0
+        let bridges = enumerator.find_by_class(0x06, 0x00); // Class 6, Subclass 0
         assert!(!bridges.is_empty(), "Should find at least one bridge");
     }
 
@@ -62,7 +62,7 @@ mod tests {
         let device = enumerator.find_by_vendor_device(0x8086, 0x1234);
         assert!(device.is_some());
         let dev = device.unwrap();
-        assert_ne!(dev.bar_regions[0], 0);  // Should have BAR region
+        assert_ne!(dev.bar_regions[0], 0); // Should have BAR region
     }
 
     #[test]
@@ -115,7 +115,7 @@ mod tests {
         let mut enumerator = UsbEnumerator::new();
         enumerator.enumerate().expect("Enumeration failed");
 
-        let hub_devices = enumerator.find_by_class(0x09);  // Hub class
+        let hub_devices = enumerator.find_by_class(0x09); // Hub class
         assert!(!hub_devices.is_empty(), "Should find hub devices");
     }
 
@@ -124,7 +124,10 @@ mod tests {
         let mut enumerator = UsbEnumerator::new();
         enumerator.enumerate().expect("Enumeration failed");
 
-        let high_speed = enumerator.devices.iter().find(|d| d.speed == UsbSpeed::High);
+        let high_speed = enumerator
+            .devices
+            .iter()
+            .find(|d| d.speed == UsbSpeed::High);
         assert!(high_speed.is_some(), "Should have high-speed devices");
     }
 
@@ -134,7 +137,10 @@ mod tests {
         enumerator.enumerate().expect("Enumeration failed");
 
         let devices_with_parent = enumerator.devices.iter().filter(|d| d.parent_hub.is_some());
-        assert!(devices_with_parent.count() > 0, "Should have devices connected to hubs");
+        assert!(
+            devices_with_parent.count() > 0,
+            "Should have devices connected to hubs"
+        );
     }
 
     // ========================================================================
@@ -212,7 +218,7 @@ mod tests {
     #[test]
     fn test_device_state_transitions_invalid() {
         let state = DeviceState::Discovered;
-        assert!(!state.can_transition_to(DeviceState::Running));  // Can't skip Ready
+        assert!(!state.can_transition_to(DeviceState::Running)); // Can't skip Ready
     }
 
     #[test]
@@ -266,8 +272,18 @@ mod tests {
     #[test]
     fn test_registry_find_by_type() {
         let mut registry = DeviceRegistry::new();
-        let dev1 = RegisteredDevice::new(ObjectId::new(), "eth0".to_string(), "ethernet".to_string(), 0);
-        let dev2 = RegisteredDevice::new(ObjectId::new(), "eth1".to_string(), "ethernet".to_string(), 0);
+        let dev1 = RegisteredDevice::new(
+            ObjectId::new(),
+            "eth0".to_string(),
+            "ethernet".to_string(),
+            0,
+        );
+        let dev2 = RegisteredDevice::new(
+            ObjectId::new(),
+            "eth1".to_string(),
+            "ethernet".to_string(),
+            0,
+        );
         registry.register(dev1);
         registry.register(dev2);
 
@@ -278,7 +294,8 @@ mod tests {
     #[test]
     fn test_registry_find_by_state() {
         let mut registry = DeviceRegistry::new();
-        let device = RegisteredDevice::new(ObjectId::new(), "usb1".to_string(), "usb".to_string(), 0);
+        let device =
+            RegisteredDevice::new(ObjectId::new(), "usb1".to_string(), "usb".to_string(), 0);
         registry.register(device);
 
         let discovered = registry.find_by_state(DeviceState::Discovered);
@@ -288,7 +305,8 @@ mod tests {
     #[test]
     fn test_registry_device_state_transition() {
         let mut registry = DeviceRegistry::new();
-        let device = RegisteredDevice::new(ObjectId::new(), "nvme0".to_string(), "nvme".to_string(), 0);
+        let device =
+            RegisteredDevice::new(ObjectId::new(), "nvme0".to_string(), "nvme".to_string(), 0);
         let device_id = device.id;
         registry.register(device);
 
@@ -302,11 +320,21 @@ mod tests {
     #[test]
     fn test_registry_device_hierarchy() {
         let mut registry = DeviceRegistry::new();
-        let parent = RegisteredDevice::new(ObjectId::new(), "pci0".to_string(), "pci_bus".to_string(), 0);
+        let parent = RegisteredDevice::new(
+            ObjectId::new(),
+            "pci0".to_string(),
+            "pci_bus".to_string(),
+            0,
+        );
         let parent_id = parent.id;
         registry.register(parent);
 
-        let mut child = RegisteredDevice::new(ObjectId::new(), "eth0".to_string(), "ethernet".to_string(), 0);
+        let mut child = RegisteredDevice::new(
+            ObjectId::new(),
+            "eth0".to_string(),
+            "ethernet".to_string(),
+            0,
+        );
         child.parent_id = Some(parent_id);
         registry.register(child);
 
@@ -317,9 +345,18 @@ mod tests {
     #[test]
     fn test_registry_device_properties() {
         let mut registry = DeviceRegistry::new();
-        let mut device = RegisteredDevice::new(ObjectId::new(), "dev0".to_string(), "generic".to_string(), 0);
-        device.properties.insert("vendor_id".to_string(), "0x8086".to_string());
-        device.properties.insert("device_id".to_string(), "0x1234".to_string());
+        let mut device = RegisteredDevice::new(
+            ObjectId::new(),
+            "dev0".to_string(),
+            "generic".to_string(),
+            0,
+        );
+        device
+            .properties
+            .insert("vendor_id".to_string(), "0x8086".to_string());
+        device
+            .properties
+            .insert("device_id".to_string(), "0x1234".to_string());
 
         let device_id = device.id;
         registry.register(device);
@@ -331,10 +368,12 @@ mod tests {
     #[test]
     fn test_registry_operational_count() {
         let mut registry = DeviceRegistry::new();
-        let mut dev1 = RegisteredDevice::new(ObjectId::new(), "dev1".to_string(), "type1".to_string(), 0);
+        let mut dev1 =
+            RegisteredDevice::new(ObjectId::new(), "dev1".to_string(), "type1".to_string(), 0);
         dev1.state = DeviceState::Running;
 
-        let dev2 = RegisteredDevice::new(ObjectId::new(), "dev2".to_string(), "type2".to_string(), 0);
+        let dev2 =
+            RegisteredDevice::new(ObjectId::new(), "dev2".to_string(), "type2".to_string(), 0);
 
         registry.register(dev1);
         registry.register(dev2);
@@ -480,12 +519,21 @@ mod tests {
         for pci_dev in &discovery.pci_enumerator.devices {
             let mut device = RegisteredDevice::new(
                 ObjectId::new(),
-                format!("pci:{:02x}:{:02x}.{}", pci_dev.bus, pci_dev.slot, pci_dev.function),
+                format!(
+                    "pci:{:02x}:{:02x}.{}",
+                    pci_dev.bus, pci_dev.slot, pci_dev.function
+                ),
                 "pci".to_string(),
                 0,
             );
-            device.properties.insert("vendor_id".to_string(), format!("0x{:04x}", pci_dev.vendor_id));
-            device.properties.insert("device_id".to_string(), format!("0x{:04x}", pci_dev.device_id));
+            device.properties.insert(
+                "vendor_id".to_string(),
+                format!("0x{:04x}", pci_dev.vendor_id),
+            );
+            device.properties.insert(
+                "device_id".to_string(),
+                format!("0x{:04x}", pci_dev.device_id),
+            );
             registry.register(device);
         }
 
@@ -519,9 +567,15 @@ mod tests {
         assert_eq!(device.state, DeviceState::Discovered);
 
         registry.register(device);
-        registry.update_device_state(device_id, DeviceState::Initialized).ok();
-        registry.update_device_state(device_id, DeviceState::Ready).ok();
-        registry.update_device_state(device_id, DeviceState::Running).ok();
+        registry
+            .update_device_state(device_id, DeviceState::Initialized)
+            .ok();
+        registry
+            .update_device_state(device_id, DeviceState::Ready)
+            .ok();
+        registry
+            .update_device_state(device_id, DeviceState::Running)
+            .ok();
 
         let dev = registry.get_device(device_id).unwrap();
         assert_eq!(dev.state, DeviceState::Running);
@@ -586,7 +640,9 @@ mod tests {
         let mut manager = HotPlugManager::new();
         let device_id = ObjectId::new();
 
-        manager.handle_device_removal(device_id, "device".to_string()).ok();
+        manager
+            .handle_device_removal(device_id, "device".to_string())
+            .ok();
         assert_eq!(manager.pending_event_count(), 1);
 
         let event = manager.next_event();
@@ -622,13 +678,17 @@ mod tests {
         let mut registry = DeviceRegistry::new();
 
         // Add some devices
-        let dev1 = RegisteredDevice::new(ObjectId::new(), "dev1".to_string(), "type1".to_string(), 0);
-        let dev2 = RegisteredDevice::new(ObjectId::new(), "dev2".to_string(), "type2".to_string(), 0);
+        let dev1 =
+            RegisteredDevice::new(ObjectId::new(), "dev1".to_string(), "type1".to_string(), 0);
+        let dev2 =
+            RegisteredDevice::new(ObjectId::new(), "dev2".to_string(), "type2".to_string(), 0);
         registry.register(dev1);
         registry.register(dev2);
 
-        let count = manager.reenumerate(&mut registry).expect("Reenumerate failed");
-        assert_eq!(count, 0);  // No operational devices yet (all Discovered)
+        let count = manager
+            .reenumerate(&mut registry)
+            .expect("Reenumerate failed");
+        assert_eq!(count, 0); // No operational devices yet (all Discovered)
     }
 
     #[test]
@@ -647,7 +707,8 @@ mod tests {
 
         manager.subscribe(DeviceEventType::Inserted, callback);
 
-        let device = RegisteredDevice::new(ObjectId::new(), "dev".to_string(), "type".to_string(), 0);
+        let device =
+            RegisteredDevice::new(ObjectId::new(), "dev".to_string(), "type".to_string(), 0);
         manager.handle_device_insertion(device).ok();
 
         // Note: handle_device_insertion emits event immediately, then process_all_events emits again
@@ -663,7 +724,8 @@ mod tests {
         let mut manager = HotPlugManager::new();
         manager.enabled = false;
 
-        let device = RegisteredDevice::new(ObjectId::new(), "dev".to_string(), "type".to_string(), 0);
+        let device =
+            RegisteredDevice::new(ObjectId::new(), "dev".to_string(), "type".to_string(), 0);
         let result = manager.handle_device_insertion(device);
         assert!(result.is_err());
     }
@@ -733,17 +795,24 @@ mod tests {
     #[test]
     fn test_hotplug_controller_device_operations() {
         let controller = HotPlugController::new();
-        let device = RegisteredDevice::new(ObjectId::new(), "test".to_string(), "type".to_string(), 0);
+        let device =
+            RegisteredDevice::new(ObjectId::new(), "test".to_string(), "type".to_string(), 0);
         let device_id = device.id;
 
         assert!(controller.insert_device(device).is_ok());
-        assert!(controller.remove_device(device_id, "test".to_string()).is_ok());
+        assert!(controller
+            .remove_device(device_id, "test".to_string())
+            .is_ok());
     }
 
     #[test]
     fn test_device_event_creation() {
         let device_id = ObjectId::new();
-        let event = DeviceEvent::new(DeviceEventType::Inserted, device_id, "test_device".to_string());
+        let event = DeviceEvent::new(
+            DeviceEventType::Inserted,
+            device_id,
+            "test_device".to_string(),
+        );
 
         assert_eq!(event.event_type, DeviceEventType::Inserted);
         assert_eq!(event.device_id, device_id);
@@ -781,7 +850,9 @@ mod tests {
         registry.register(device);
 
         // Register insertion event
-        manager.handle_device_removal(device_id, "integrated_device".to_string()).ok();
+        manager
+            .handle_device_removal(device_id, "integrated_device".to_string())
+            .ok();
 
         // Step 2: Verify device is in registry
         assert!(registry.get_device(device_id).is_some());
@@ -811,7 +882,13 @@ mod tests {
             let backoff = recovery.get_backoff_ms(device_id);
             // Verify exponential backoff: 100 * 2^(i+1)
             let expected = 100 * 2_u32.pow((i + 1) as u32);
-            assert_eq!(backoff, expected, "Backoff at attempt {} should be {}", i + 1, expected);
+            assert_eq!(
+                backoff,
+                expected,
+                "Backoff at attempt {} should be {}",
+                i + 1,
+                expected
+            );
         }
 
         // After 3 attempts, recovery should not be possible

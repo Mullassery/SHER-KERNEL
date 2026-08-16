@@ -40,3 +40,26 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_messages_include_context() {
+        let err = Error::Memory("bad address".to_string());
+        assert_eq!(err.to_string(), "Memory error: bad address");
+    }
+
+    #[test]
+    fn io_error_converts_via_from() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
+        let err: Error = io_err.into();
+        assert!(matches!(err, Error::Io(_)));
+    }
+
+    #[test]
+    fn out_of_memory_has_fixed_message() {
+        assert_eq!(Error::OutOfMemory.to_string(), "Out of memory");
+    }
+}

@@ -89,7 +89,10 @@ mod tests {
         };
 
         let container = DriverContainer::new("test").with_limits(limits);
-        assert_eq!(container.resource_limits.memory_limit_bytes, 512 * 1024 * 1024);
+        assert_eq!(
+            container.resource_limits.memory_limit_bytes,
+            512 * 1024 * 1024
+        );
         assert_eq!(container.resource_limits.cpu_quota_percent, 75);
     }
 
@@ -367,9 +370,18 @@ mod tests {
     #[test]
     fn test_sher_primitive_strings() {
         assert_eq!(SherPrimitive::MasterAllocate.as_str(), "master_allocate");
-        assert_eq!(SherPrimitive::MasterDeallocate.as_str(), "master_deallocate");
-        assert_eq!(SherPrimitive::InterruptRegister.as_str(), "interrupt_register");
-        assert_eq!(SherPrimitive::InterruptUnregister.as_str(), "interrupt_unregister");
+        assert_eq!(
+            SherPrimitive::MasterDeallocate.as_str(),
+            "master_deallocate"
+        );
+        assert_eq!(
+            SherPrimitive::InterruptRegister.as_str(),
+            "interrupt_register"
+        );
+        assert_eq!(
+            SherPrimitive::InterruptUnregister.as_str(),
+            "interrupt_unregister"
+        );
     }
 
     // ========================================================================
@@ -381,7 +393,9 @@ mod tests {
         let mut loader = DriverLoader::new();
 
         // Load driver
-        let container = loader.load_driver("test.ko", "test_driver").expect("Failed to load");
+        let container = loader
+            .load_driver("test.ko", "test_driver")
+            .expect("Failed to load");
         assert_eq!(container.state, ContainerState::Running);
 
         // Get driver reference
@@ -517,7 +531,9 @@ mod tests {
         let driver_id = ObjectId::new();
         let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
 
-        assert!(policy.check_file_access("/sys/bus/pci/devices", false).is_ok());
+        assert!(policy
+            .check_file_access("/sys/bus/pci/devices", false)
+            .is_ok());
         assert!(policy.check_file_access("/dev/mem", false).is_ok());
     }
 
@@ -536,9 +552,13 @@ mod tests {
         let policy = SandboxPolicy::new(driver_id, SecurityLevel::Restricted);
 
         // Read should be OK (matches allowed path)
-        assert!(policy.check_file_access("/sys/bus/pci/devices", false).is_ok());
+        assert!(policy
+            .check_file_access("/sys/bus/pci/devices", false)
+            .is_ok());
         // Write should be blocked (matches read-only path)
-        assert!(policy.check_file_access("/sys/bus/pci/devices", true).is_err());
+        assert!(policy
+            .check_file_access("/sys/bus/pci/devices", true)
+            .is_err());
     }
 
     #[test]
@@ -604,7 +624,9 @@ mod tests {
         let driver_id = ObjectId::new();
         let policy = NetworkPolicy::new(driver_id);
 
-        assert!(policy.check_connection(IpProtocol::Tcp, "8.8.8.8:53").is_ok());
+        assert!(policy
+            .check_connection(IpProtocol::Tcp, "8.8.8.8:53")
+            .is_ok());
     }
 
     #[test]
@@ -613,7 +635,9 @@ mod tests {
         let mut policy = NetworkPolicy::new(driver_id);
         policy.allow_network = false;
 
-        assert!(policy.check_connection(IpProtocol::Tcp, "8.8.8.8:53").is_err());
+        assert!(policy
+            .check_connection(IpProtocol::Tcp, "8.8.8.8:53")
+            .is_err());
     }
 
     #[test]
@@ -621,9 +645,11 @@ mod tests {
         let mut throttler = BandwidthThrottler::new();
         let driver_id = ObjectId::new();
 
-        throttler.set_limit(driver_id, 100);  // 100 kbps
-        assert!(throttler.record_traffic(driver_id, 50 * 1024, true).is_ok());  // 50 KB
-        assert!(throttler.record_traffic(driver_id, 60 * 1024, true).is_err());  // 60 KB (exceeds limit)
+        throttler.set_limit(driver_id, 100); // 100 kbps
+        assert!(throttler.record_traffic(driver_id, 50 * 1024, true).is_ok()); // 50 KB
+        assert!(throttler
+            .record_traffic(driver_id, 60 * 1024, true)
+            .is_err()); // 60 KB (exceeds limit)
     }
 
     #[test]
@@ -631,8 +657,8 @@ mod tests {
         let mut throttler = BandwidthThrottler::new();
         let driver_id = ObjectId::new();
 
-        throttler.set_limit(driver_id, 10000);  // 10 Mbps
-        throttler.record_traffic(driver_id, 1024, true).ok();  // 1 KB send
+        throttler.set_limit(driver_id, 10000); // 10 Mbps
+        throttler.record_traffic(driver_id, 1024, true).ok(); // 1 KB send
         throttler.record_traffic(driver_id, 2048, false).ok(); // 2 KB receive
 
         let metrics = throttler.get_metrics(driver_id);
@@ -648,7 +674,9 @@ mod tests {
         let policy = NetworkPolicy::new(driver_id);
 
         manager.register_policy(policy);
-        assert!(manager.add_connection(driver_id, "conn_1".to_string()).is_ok());
+        assert!(manager
+            .add_connection(driver_id, "conn_1".to_string())
+            .is_ok());
         assert_eq!(manager.get_connection_count(driver_id), 1);
 
         manager.remove_connection(driver_id, "conn_1");
@@ -663,9 +691,15 @@ mod tests {
         policy.max_connections = 2;
 
         manager.register_policy(policy);
-        assert!(manager.add_connection(driver_id, "conn_1".to_string()).is_ok());
-        assert!(manager.add_connection(driver_id, "conn_2".to_string()).is_ok());
-        assert!(manager.add_connection(driver_id, "conn_3".to_string()).is_err());
+        assert!(manager
+            .add_connection(driver_id, "conn_1".to_string())
+            .is_ok());
+        assert!(manager
+            .add_connection(driver_id, "conn_2".to_string())
+            .is_ok());
+        assert!(manager
+            .add_connection(driver_id, "conn_3".to_string())
+            .is_err());
     }
 
     #[test]
@@ -702,7 +736,9 @@ mod tests {
         assert!(manager.check_device_access(driver_id, device_id).is_ok());
 
         let other_device = ObjectId::new();
-        assert!(manager.check_device_access(driver_id, other_device).is_err());
+        assert!(manager
+            .check_device_access(driver_id, other_device)
+            .is_err());
     }
 
     #[test]
@@ -745,8 +781,14 @@ mod tests {
 
         integration.register_device_driver(device_id, driver_id);
 
-        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id));
-        assert_eq!(integration.get_devices_for_driver(driver_id), Some(&vec![device_id]));
+        assert_eq!(
+            integration.get_driver_for_device(device_id),
+            Some(driver_id)
+        );
+        assert_eq!(
+            integration.get_devices_for_driver(driver_id),
+            Some(&vec![device_id])
+        );
     }
 
     #[test]
@@ -756,7 +798,10 @@ mod tests {
         let driver_id = ObjectId::new();
 
         integration.register_device_driver(device_id, driver_id);
-        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id));
+        assert_eq!(
+            integration.get_driver_for_device(device_id),
+            Some(driver_id)
+        );
 
         integration.unregister_device_driver(device_id);
         assert_eq!(integration.get_driver_for_device(device_id), None);
@@ -798,7 +843,10 @@ mod tests {
         let retrieved = integration.next_event();
 
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().event_type, HotPlugEventType::DeviceInserted);
+        assert_eq!(
+            retrieved.unwrap().event_type,
+            HotPlugEventType::DeviceInserted
+        );
         assert_eq!(integration.pending_events(), 0);
     }
 
@@ -824,7 +872,11 @@ mod tests {
         let mut integration = HotPlugIntegration::new();
         let device_id = ObjectId::new();
 
-        integration.record_error(device_id, "test_driver".to_string(), "Driver crashed".to_string());
+        integration.record_error(
+            device_id,
+            "test_driver".to_string(),
+            "Driver crashed".to_string(),
+        );
 
         assert_eq!(integration.error_count, 1);
         assert_eq!(integration.pending_events(), 1);
@@ -908,9 +960,18 @@ mod tests {
 
     #[test]
     fn test_hotplug_event_types() {
-        assert_ne!(HotPlugEventType::DeviceInserted, HotPlugEventType::DeviceRemoved);
-        assert_ne!(HotPlugEventType::DriverLoaded, HotPlugEventType::DriverUnloaded);
-        assert_ne!(HotPlugEventType::DriverError, HotPlugEventType::DriverRecovered);
+        assert_ne!(
+            HotPlugEventType::DeviceInserted,
+            HotPlugEventType::DeviceRemoved
+        );
+        assert_ne!(
+            HotPlugEventType::DriverLoaded,
+            HotPlugEventType::DriverUnloaded
+        );
+        assert_ne!(
+            HotPlugEventType::DriverError,
+            HotPlugEventType::DriverRecovered
+        );
     }
 
     #[test]
@@ -940,8 +1001,14 @@ mod tests {
         integration.register_device_driver(device_id2, driver_id);
 
         // Device to driver mapping
-        assert_eq!(integration.get_driver_for_device(device_id1), Some(driver_id));
-        assert_eq!(integration.get_driver_for_device(device_id2), Some(driver_id));
+        assert_eq!(
+            integration.get_driver_for_device(device_id1),
+            Some(driver_id)
+        );
+        assert_eq!(
+            integration.get_driver_for_device(device_id2),
+            Some(driver_id)
+        );
 
         // Driver to devices mapping
         let devices = integration.get_devices_for_driver(driver_id);
@@ -979,7 +1046,11 @@ mod tests {
         assert_eq!(manager.event_count(), 0);
 
         let device_id = ObjectId::new();
-        manager.hotplug_integration.record_error(device_id, "test".to_string(), "error".to_string());
+        manager.hotplug_integration.record_error(
+            device_id,
+            "test".to_string(),
+            "error".to_string(),
+        );
 
         assert_eq!(manager.error_count(), 1);
         assert_eq!(manager.event_count(), 1);
@@ -993,12 +1064,18 @@ mod tests {
         let device_id = ObjectId::new();
 
         integration.register_device_driver(device_id, driver_id1);
-        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id1));
+        assert_eq!(
+            integration.get_driver_for_device(device_id),
+            Some(driver_id1)
+        );
 
         // Unregister and re-register with different driver
         integration.unregister_device_driver(device_id);
         integration.register_device_driver(device_id, driver_id2);
-        assert_eq!(integration.get_driver_for_device(device_id), Some(driver_id2));
+        assert_eq!(
+            integration.get_driver_for_device(device_id),
+            Some(driver_id2)
+        );
     }
 
     #[test]

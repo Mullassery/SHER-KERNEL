@@ -11,5 +11,5 @@
 pub mod profiler;
 pub mod stress_test;
 
-pub use profiler::{Profiler, LatencyMetrics, ThroughputMetrics, ResourceMetrics};
+pub use profiler::{LatencyMetrics, Profiler, ResourceMetrics, ThroughputMetrics};
 pub use stress_test::{StressTest, StressTestConfig, StressTestResults};

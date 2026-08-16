@@ -7,8 +7,8 @@
 //! - Device capabilities querying
 //! - Resource management and tracking
 
-use std::collections::HashMap;
 use sher_common::{ObjectId, Result};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DeviceType {
@@ -56,6 +56,12 @@ pub struct HardwareAbstractionLayer {
     drivers: HashMap<DeviceType, Box<dyn HardwareDriver>>,
 }
 
+impl Default for HardwareAbstractionLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HardwareAbstractionLayer {
     pub fn new() -> Self {
         HardwareAbstractionLayer {
@@ -77,10 +83,10 @@ impl HardwareAbstractionLayer {
     pub fn probe_devices(&mut self) -> Result<Vec<DeviceInfo>> {
         let mut all_devices = Vec::new();
 
-        for (_, driver) in &self.drivers {
+        for driver in self.drivers.values() {
             let devices = driver.probe()?;
             for device in devices {
-                self.devices.insert(device.id.clone(), device.clone());
+                self.devices.insert(device.id, device.clone());
                 all_devices.push(device);
             }
         }
@@ -113,7 +119,7 @@ impl HardwareAbstractionLayer {
             write_protected: false,
         };
 
-        self.mappings.insert(device_id.clone(), mapping);
+        self.mappings.insert(*device_id, mapping);
         Ok(physical_addr)
     }
 
@@ -122,24 +128,30 @@ impl HardwareAbstractionLayer {
     }
 
     pub fn read_register(&self, device_id: &ObjectId, offset: usize) -> Result<u32> {
-        let device = self.get_device(device_id)
+        let device = self
+            .get_device(device_id)
             .ok_or_else(|| sher_common::Error::Device("Device not found".to_string()))?;
 
         if let Some(driver) = self.drivers.get(&device.device_type) {
             driver.read_register(device_id, offset)
         } else {
-            Err(sher_common::Error::Device("No driver for device type".to_string()))
+            Err(sher_common::Error::Device(
+                "No driver for device type".to_string(),
+            ))
         }
     }
 
     pub fn write_register(&self, device_id: &ObjectId, offset: usize, value: u32) -> Result<()> {
-        let device = self.get_device(device_id)
+        let device = self
+            .get_device(device_id)
             .ok_or_else(|| sher_common::Error::Device("Device not found".to_string()))?;
 
         if let Some(driver) = self.drivers.get(&device.device_type) {
             driver.write_register(device_id, offset, value)
         } else {
-            Err(sher_common::Error::Device("No driver for device type".to_string()))
+            Err(sher_common::Error::Device(
+                "No driver for device type".to_string(),
+            ))
         }
     }
 

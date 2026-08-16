@@ -1,8 +1,8 @@
 // SHER AI Services: Reinforcement Learning
 // Learn optimal policies through reward-based feedback and experience
 
-use sher_common::ObjectId;
 use serde::{Deserialize, Serialize};
+use sher_common::ObjectId;
 use std::collections::HashMap;
 
 // ============================================================================
@@ -11,20 +11,20 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardSignal {
-    SloAchieved,           // Driver met SLO
-    SloViolated,           // Driver missed SLO
-    AnomalyDetected,       // System detected anomaly
-    OptimizationSuccess,   // Optimization improved metrics
-    OptimizationFailed,    // Optimization made things worse
-    ResourceEfficient,     // Good resource utilization
-    ResourceWasted,        // Poor resource utilization
+    SloAchieved,         // Driver met SLO
+    SloViolated,         // Driver missed SLO
+    AnomalyDetected,     // System detected anomaly
+    OptimizationSuccess, // Optimization improved metrics
+    OptimizationFailed,  // Optimization made things worse
+    ResourceEfficient,   // Good resource utilization
+    ResourceWasted,      // Poor resource utilization
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RewardEvent {
     pub driver_id: ObjectId,
     pub signal: RewardSignal,
-    pub magnitude: f64,    // 0.0-1.0 confidence/strength
+    pub magnitude: f64, // 0.0-1.0 confidence/strength
     pub timestamp_ms: u64,
     pub action_taken: String,
 }
@@ -63,7 +63,8 @@ impl ActionPolicy {
         self.total_reward += reward;
 
         // Update average with exponential moving average
-        self.avg_reward = self.avg_reward * (1.0 - self.learning_rate) + reward * self.learning_rate;
+        self.avg_reward =
+            self.avg_reward * (1.0 - self.learning_rate) + reward * self.learning_rate;
 
         if reward > 0.0 {
             self.success_count += 1;
@@ -112,7 +113,8 @@ impl DriverLearner {
 
     /// Record reward for an action
     pub fn record_reward(&mut self, action: String, reward: f64) {
-        let policy = self.policies
+        let policy = self
+            .policies
             .entry(action.clone())
             .or_insert_with(|| ActionPolicy::new(action));
 
@@ -132,13 +134,18 @@ impl DriverLearner {
     pub fn get_best_action(&self) -> Option<String> {
         self.policies
             .iter()
-            .max_by(|a, b| a.1.avg_reward.partial_cmp(&b.1.avg_reward).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.1.avg_reward
+                    .partial_cmp(&b.1.avg_reward)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(name, _)| name.clone())
     }
 
     /// Get top N actions by reward
     pub fn get_top_actions(&self, n: usize) -> Vec<(String, f64)> {
-        let mut actions: Vec<_> = self.policies
+        let mut actions: Vec<_> = self
+            .policies
             .iter()
             .map(|(name, policy)| (name.clone(), policy.avg_reward))
             .collect();
@@ -154,10 +161,12 @@ impl DriverLearner {
         }
 
         let avg = self.learning_history.iter().sum::<f64>() / self.learning_history.len() as f64;
-        let variance = self.learning_history
+        let variance = self
+            .learning_history
             .iter()
             .map(|r| (r - avg).powi(2))
-            .sum::<f64>() / self.learning_history.len() as f64;
+            .sum::<f64>()
+            / self.learning_history.len() as f64;
 
         variance.sqrt()
     }
@@ -197,7 +206,8 @@ impl ReinforcementLearner {
 
         // Update driver learner
         {
-            let driver_learner = self.driver_learners
+            let driver_learner = self
+                .driver_learners
                 .entry(event.driver_id)
                 .or_insert_with(|| DriverLearner::new(event.driver_id));
 
@@ -205,7 +215,8 @@ impl ReinforcementLearner {
         }
 
         // Update global policy
-        let global_policy = self.global_policies
+        let global_policy = self
+            .global_policies
             .entry(action_name)
             .or_insert_with(|| ActionPolicy::new(event.action_taken.clone()));
 
@@ -237,7 +248,11 @@ impl ReinforcementLearner {
     pub fn get_best_global_policy(&self) -> Option<String> {
         self.global_policies
             .iter()
-            .max_by(|a, b| a.1.avg_reward.partial_cmp(&b.1.avg_reward).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.1.avg_reward
+                    .partial_cmp(&b.1.avg_reward)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(name, _)| name.clone())
     }
 
@@ -271,7 +286,8 @@ impl ReinforcementLearner {
 
     /// Get convergence analysis
     pub fn get_convergence_status(&self) -> Vec<(ObjectId, f64)> {
-        let mut convergence: Vec<_> = self.driver_learners
+        let mut convergence: Vec<_> = self
+            .driver_learners
             .iter()
             .map(|(id, learner)| (*id, learner.convergence_metric()))
             .collect();

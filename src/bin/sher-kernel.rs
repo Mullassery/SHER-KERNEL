@@ -1,19 +1,24 @@
-// SHER Kernel v1.0.0 - Main Binary Entry Point
-// Production-ready OS kernel for the AI era
+// SHER Kernel - Main Binary Entry Point
+//
+// IMPORTANT: this is a userspace CLI over a Rust workspace that prototypes
+// what a future OS kernel's object model and subsystem APIs might look
+// like. It is NOT a bootable kernel: there is no bootloader, no ring-0
+// code, and no bare-metal hardware access anywhere in this workspace. It
+// runs as an ordinary process under whatever OS you invoke it from. See
+// README.md and CLAUDE.md for the full, accurate status.
 
 use std::env;
 use std::process;
 
 fn main() {
-    let version = "1.0.0";
-    let _build_date = "August 7, 2026";
+    let version = env!("CARGO_PKG_VERSION");
 
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 {
         match args[1].as_str() {
             "--version" | "-v" => {
-                println!("SHER Kernel {}", version);
+                println!("SHER Kernel prototype {}", version);
                 process::exit(0);
             }
             "--help" | "-h" => {
@@ -40,135 +45,78 @@ fn main() {
 }
 
 fn print_welcome() {
-    println!("╔════════════════════════════════════════════════════════════╗");
-    println!("║          SHER Kernel v1.0.0 - Production Ready            ║");
-    println!("║                                                            ║");
-    println!("║  Strength. Resilience. Intelligence. Adaptability.        ║");
-    println!("║                                                            ║");
-    println!("║  Built for the AI Era                                     ║");
-    println!("║  Security by Design | Performance by Default              ║");
-    println!("╚════════════════════════════════════════════════════════════╝");
+    println!("SHER Kernel — userspace architecture prototype (not a bootable kernel)");
     println!();
-    println!("Release Date: August 7, 2026");
+    println!("Strength. Resilience. Intelligence. Adaptability.");
     println!();
-    println!("Status: Production Ready");
-    println!("Tests: 543/543 passing (100%)");
-    println!("Code: 21,000+ LOC");
-    println!("Phases: 13/13 complete");
+    println!("This process demonstrates object-model, scheduling, memory-bookkeeping,");
+    println!("and driver-lifecycle APIs that a future real kernel might expose. It");
+    println!("runs as an ordinary program on your existing OS.");
     println!();
-    println!("Use --help for more information");
+    println!("Use --help for more information, --status for what's implemented.");
 }
 
 fn print_help() {
-    println!("SHER Kernel v1.0.0 - Usage");
+    println!("SHER Kernel prototype - Usage");
     println!();
     println!("Usage: sher-kernel [COMMAND]");
     println!();
     println!("Commands:");
     println!("  --version, -v    Show version information");
     println!("  --help, -h       Show this help message");
-    println!("  --status         Show kernel status");
-    println!("  --info           Show detailed information");
+    println!("  --status         Show what's implemented vs. simulated");
+    println!("  --info           Show detailed project information");
     println!();
     println!("Documentation:");
-    println!("  Installation: https://github.com/Mullassery/SHER-KERNEL");
-    println!("  API Reference: See API_REFERENCE.md");
-    println!("  Deployment: See INSTALLATION_GUIDE.md");
+    println!("  README.md         Accurate project status and scope");
+    println!("  CLAUDE.md         Architecture and implementation guide");
+    println!("  API_REFERENCE.md  Per-crate API reference");
     println!();
-    println!("For more information, visit:");
+    println!("Repository:");
     println!("  https://github.com/Mullassery/SHER-KERNEL");
 }
 
 fn print_status() {
-    println!("SHER Kernel v1.0.0 Status Report");
-    println!("=================================");
+    println!("SHER Kernel prototype — Status Report");
+    println!("======================================");
     println!();
-    println!("Release Status: Production Ready");
-    println!("Version: 1.0.0");
-    println!("Build Date: August 7, 2026");
+    println!("This is a userspace Rust workspace, not a bootable kernel.");
+    println!("Run `cargo test --workspace` for the current, authoritative test count.");
     println!();
-    println!("Components:");
-    println!("  Kernel Core (Phases 0-10): ✅ Complete");
-    println!("    - 15,200+ LOC");
-    println!("    - 388+ tests passing");
+    println!("Real, tested (userspace logic):");
+    println!("  - Object model: identity, lifecycle, capabilities, telemetry");
+    println!("  - Priority scheduler, memory allocator/slab tiers, timer wheel");
+    println!("  - Device registry, driver container lifecycle, hot-plug simulation");
+    println!("  - Security: capability grants w/ expiry, sandbox policy, audit log");
+    println!("  - Snapshot/rollback store, transactional updater state machine");
     println!();
-    println!("  Hardware Integration (Phase 11): ✅ Complete");
-    println!("    - GPU Driver (DRM/KMS)");
-    println!("    - Audio Driver (ALSA)");
-    println!("    - Input Driver (evdev)");
-    println!("    - Wayland Compositor");
-    println!("    - 2,770 LOC, 80 tests");
+    println!("Explicitly simulated (no real hardware/kernel privilege access):");
+    println!("  - CPU/MMU/interrupt-controller bring-up (would need ring-0)");
+    println!("  - GPU/audio/input device I/O (see each crate's module docs)");
     println!();
-    println!("  System Integration (Phase 12): ✅ Complete");
-    println!("    - 948 LOC, 35 tests");
-    println!();
-    println!("  Production Hardening (Phase 13): ✅ Complete");
-    println!("    - Security audit framework");
-    println!("    - Performance optimization");
-    println!("    - Release engineering");
-    println!("    - 2,082 LOC, 42 tests");
-    println!();
-    println!("Overall Status: 543/543 tests passing (100%)");
-    println!("Quality Gates: ALL PASSED");
-    println!("Security Status: SECURE");
-    println!("Performance Status: OPTIMIZED");
+    println!("See README.md for the full, current breakdown.");
 }
 
 fn print_info() {
-    println!("SHER Kernel v1.0.0 - Detailed Information");
-    println!("==========================================");
+    println!("SHER Kernel prototype - Detailed Information");
+    println!("==============================================");
     println!();
     println!("Project Description:");
-    println!("  A production-ready operating system kernel built from scratch");
-    println!("  for the AI era with native anomaly detection, zero-trust");
-    println!("  security, and predictive resource allocation.");
+    println!("  A userspace Rust workspace prototyping the object model,");
+    println!("  scheduling, memory bookkeeping, and driver-lifecycle APIs that a");
+    println!("  future OS kernel might expose. It is not a bootable kernel: no");
+    println!("  bootloader, no ring-0 code, no bare-metal drivers.");
     println!();
-    println!("Key Features:");
-    println!("  • AI-Native Architecture");
-    println!("    - Anomaly detection engines");
-    println!("    - Predictive resource allocation");
-    println!("    - Adaptive scheduling");
-    println!();
-    println!("  • Security by Design");
-    println!("    - Capability-based permissions");
-    println!("    - Mandatory driver isolation");
-    println!("    - Zero-trust model");
-    println!();
-    println!("  • Deterministic Performance");
-    println!("    - <10ms client connection latency");
-    println!("    - >1000 ops/sec throughput");
-    println!("    - 60-80MB memory overhead");
-    println!();
-    println!("  • Hardware Integration");
-    println!("    - 6-layer driver stack");
-    println!("    - GPU/Audio/Input coordination");
-    println!("    - Wayland display server");
-    println!();
-    println!("Performance Metrics:");
-    println!("  Client Connection:     <10ms");
-    println!("  Surface Creation:      <10ms");
-    println!("  Event Routing:         <1ms");
-    println!("  Throughput:            >1000 ops/sec");
-    println!("  Cache Hit Rate:        >85%");
-    println!("  Memory Overhead:       60-80MB");
-    println!();
-    println!("Security Metrics:");
-    println!("  Input Validation:      ✅ Enabled");
-    println!("  Capability Control:    ✅ Enforced");
-    println!("  Memory Safety:         ✅ Verified");
-    println!("  Audit Logging:         ✅ Complete");
-    println!("  Threat Scoring:        ✅ Active");
-    println!();
-    println!("Testing:");
-    println!("  Total Tests:           543");
-    println!("  Pass Rate:             100%");
-    println!("  Code Coverage:         Comprehensive");
+    println!("Design goals being explored:");
+    println!("  - Capability-based, time-bounded permissions");
+    println!("  - Isolated driver lifecycle with crash recovery");
+    println!("  - AI-assisted anomaly detection and adaptive scheduling (simulated)");
+    println!("  - A/B immutable-update model with instant rollback");
     println!();
     println!("Documentation:");
-    println!("  Installation Guide:    INSTALLATION_GUIDE.md");
-    println!("  API Reference:         API_REFERENCE.md");
-    println!("  Release Notes:         RELEASE_NOTES_1_0_0.md");
-    println!("  Completion Status:     FINAL_COMPLETION_STATUS.md");
+    println!("  README.md          Accurate project status and scope");
+    println!("  CLAUDE.md           Architecture and implementation guide");
+    println!("  API_REFERENCE.md    Per-crate API reference");
     println!();
     println!("Repository:");
     println!("  https://github.com/Mullassery/SHER-KERNEL");

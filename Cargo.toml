@@ -44,11 +44,17 @@ members = [
 
     # Main kernel entry
     "crates/kernel", "crates/benchmarks", "crates/digital_twins", "crates/profiling", "crates/hardening", "crates/hal", "crates/gpu_driver", "crates/audio_driver", "crates/input_driver", "crates/wayland_server", "crates/unified_device_manager", "crates/system_integration", "crates/performance_benchmarks", "crates/security_audit", "crates/performance_optimization", "crates/release_engineering",
+
+    # Previously only implicit workspace members (path deps of crates/kernel
+    # and others, auto-included by Cargo but not listed here) — made
+    # explicit for clarity.
+    "crates/device_manager", "crates/driver_runtime", "crates/lki",
+    "crates/networking", "crates/scheduler", "crates/storage",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 license = "Proprietary License — Free to use with explicit attribution"
@@ -71,7 +77,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "SHER Kernel v1.0.0 - Production-ready OS kernel for the AI era"
+description = "SHER Kernel - userspace prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts (not a bootable kernel)"
 
 [[bin]]
 name = "sher-kernel"

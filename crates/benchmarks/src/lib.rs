@@ -34,9 +34,12 @@ impl BenchmarkMetrics {
     pub fn to_microseconds(nanos: u64) -> f64 {
         nanos as f64 / 1000.0
     }
+}
 
-    pub fn to_string(&self) -> String {
-        format!(
+impl std::fmt::Display for BenchmarkMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
             "{}: avg {:.2}μs, min {:.2}μs, max {:.2}μs",
             self.operation,
             Self::to_microseconds(self.avg_nanoseconds),

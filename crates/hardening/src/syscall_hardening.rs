@@ -7,8 +7,8 @@
 //! - Suspicious pattern detection
 //! - Rate limiting
 
-use std::collections::{HashMap, HashSet};
 use sher_common::{ObjectId, Result};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SyscallType {
@@ -78,11 +78,15 @@ impl SyscallHardener {
     pub fn validate_syscall(&mut self, driver_id: &ObjectId, syscall: SyscallType) -> Result<()> {
         if !self.policy.allowed_syscalls.contains(&syscall) {
             self.record_blocked(driver_id, syscall.clone());
-            return Err(sher_common::Error::Security("Syscall not whitelisted".to_string()));
+            return Err(sher_common::Error::Security(
+                "Syscall not whitelisted".to_string(),
+            ));
         }
 
         if !self.check_rate_limit(driver_id)? {
-            return Err(sher_common::Error::Security("Syscall rate limit exceeded".to_string()));
+            return Err(sher_common::Error::Security(
+                "Syscall rate limit exceeded".to_string(),
+            ));
         }
 
         self.record_call(driver_id, syscall);
@@ -96,7 +100,9 @@ impl SyscallHardener {
 
         for param in params {
             if *param == 0 {
-                return Err(sher_common::Error::Security("Null pointer parameter".to_string()));
+                return Err(sher_common::Error::Security(
+                    "Null pointer parameter".to_string(),
+                ));
             }
         }
 
@@ -108,8 +114,10 @@ impl SyscallHardener {
             return Ok(());
         }
 
-        if return_value < 0 && return_value < -130 {
-            return Err(sher_common::Error::Security("Invalid return value (out of range)".to_string()));
+        if return_value < -130 {
+            return Err(sher_common::Error::Security(
+                "Invalid return value (out of range)".to_string(),
+            ));
         }
 
         Ok(())
@@ -124,20 +132,21 @@ impl SyscallHardener {
     }
 
     pub fn get_audit(&self, driver_id: &ObjectId, syscall: &SyscallType) -> Option<SyscallAudit> {
-        self.audits.get(driver_id)
+        self.audits
+            .get(driver_id)
             .and_then(|audits| audits.get(syscall))
             .cloned()
     }
 
     pub fn get_driver_audit(&self, driver_id: &ObjectId) -> HashMap<SyscallType, SyscallAudit> {
-        self.audits.get(driver_id)
-            .cloned()
-            .unwrap_or_default()
+        self.audits.get(driver_id).cloned().unwrap_or_default()
     }
 
     fn record_call(&mut self, driver_id: &ObjectId, syscall: SyscallType) {
-        let audit = self.audits.entry(driver_id.clone())
-            .or_insert_with(HashMap::new)
+        let audit = self
+            .audits
+            .entry(*driver_id)
+            .or_default()
             .entry(syscall)
             .or_insert_with(|| SyscallAudit {
                 syscall: SyscallType::Unknown(0),
@@ -151,8 +160,10 @@ impl SyscallHardener {
     }
 
     fn record_blocked(&mut self, driver_id: &ObjectId, syscall: SyscallType) {
-        let audit = self.audits.entry(driver_id.clone())
-            .or_insert_with(HashMap::new)
+        let audit = self
+            .audits
+            .entry(*driver_id)
+            .or_default()
             .entry(syscall)
             .or_insert_with(|| SyscallAudit {
                 syscall: SyscallType::Unknown(0),
@@ -169,8 +180,7 @@ impl SyscallHardener {
         let now = std::time::Instant::now();
         let one_sec_ago = now - std::time::Duration::from_secs(1);
 
-        let times = self.call_times.entry(driver_id.clone())
-            .or_insert_with(Vec::new);
+        let times = self.call_times.entry(*driver_id).or_default();
 
         times.retain(|&t| t > one_sec_ago);
 

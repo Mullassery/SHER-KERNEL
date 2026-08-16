@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use sher_security::capability::{CapabilityGrant, Capability, PermissionTier};
+use sher_security::capability::{Capability, CapabilityGrant, PermissionTier};
 use sher_security::enforcer::SecurityEnforcer;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,10 +17,7 @@ fn benchmark_capability_check(c: &mut Criterion) {
 
     c.bench_function("capability_check_hit", |b| {
         b.iter(|| {
-            let _ = enforcer.check_capability(
-                black_box(&driver_id),
-                black_box(&Capability::Read),
-            );
+            let _ = enforcer.check_capability(black_box(&driver_id), black_box(&Capability::Read));
         })
     });
 }
@@ -30,10 +27,8 @@ fn benchmark_capability_check_miss(c: &mut Criterion) {
 
     c.bench_function("capability_check_miss", |b| {
         b.iter(|| {
-            let _ = enforcer.check_capability(
-                black_box(&"unknown_driver"),
-                black_box(&Capability::Admin),
-            );
+            let _ = enforcer
+                .check_capability(black_box(&"unknown_driver"), black_box(&Capability::Admin));
         })
     });
 }

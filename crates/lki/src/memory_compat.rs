@@ -1,19 +1,10 @@
-use sher_common::Result;
 use serde::{Deserialize, Serialize};
+use sher_common::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LinuxMemoryApi {
     pub kmalloc_count: u32,
     pub kfree_count: u32,
-}
-
-impl Default for LinuxMemoryApi {
-    fn default() -> Self {
-        Self {
-            kmalloc_count: 0,
-            kfree_count: 0,
-        }
-    }
 }
 
 impl LinuxMemoryApi {

@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use sher_memory::allocator::MemoryAllocator;
 use std::time::Instant;
 
@@ -30,7 +30,9 @@ fn benchmark_allocation_sequence(c: &mut Criterion) {
 
     c.bench_function("allocate_deallocate_sequence", |b| {
         b.iter(|| {
-            let ptrs: Vec<_> = (0..100).map(|_| allocator.allocate(black_box(256)).unwrap()).collect();
+            let ptrs: Vec<_> = (0..100)
+                .map(|_| allocator.allocate(black_box(256)).unwrap())
+                .collect();
             for ptr in ptrs {
                 let _ = allocator.deallocate(ptr);
             }

@@ -10,5 +10,5 @@
 pub mod event_log;
 pub mod replay_engine;
 
-pub use event_log::{EventLog, KernelEvent, EventType};
+pub use event_log::{EventLog, EventType, KernelEvent};
 pub use replay_engine::{ReplayEngine, ReplayMode, ReplayStats};

@@ -10,19 +10,19 @@
 //! - Tier 3: Direct huge page allocation (>1GB)
 
 pub mod allocator;
-pub mod paging;
 pub mod dma;
+pub mod master_allocator;
+pub mod paging;
+pub mod stress_tests;
 pub mod tier0_slab;
 pub mod tier1_slab;
-pub mod master_allocator;
-pub mod stress_tests;
 
 pub use allocator::MemoryAllocator;
-pub use paging::PageTable;
 pub use dma::DmaManager;
-pub use tier0_slab::{Tier0Allocator, CpuSlabCache};
-pub use tier1_slab::{Tier1Allocator, SocketSlabCache, SlabPage};
-pub use master_allocator::{MasterAllocator, AllocatorStats};
+pub use master_allocator::{AllocatorStats, MasterAllocator};
+pub use paging::PageTable;
+pub use tier0_slab::{CpuSlabCache, Tier0Allocator};
+pub use tier1_slab::{SlabPage, SocketSlabCache, Tier1Allocator};
 
 // Re-export size classes with namespace prefix to avoid conflicts
 pub use tier0_slab::SizeClass as SizeClassTier0;

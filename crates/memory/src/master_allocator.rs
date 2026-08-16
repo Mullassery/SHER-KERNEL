@@ -7,7 +7,7 @@
 
 use crate::tier0_slab::Tier0Allocator;
 use crate::tier1_slab::Tier1Allocator;
-use sher_common::{Result, Error};
+use sher_common::{Error, Result};
 
 // ============================================================================
 // MASTER ALLOCATOR
@@ -60,40 +60,43 @@ impl MasterAllocator {
     pub fn allocate(&mut self, size: usize) -> Result<*mut u8> {
         match size {
             // Tier 0: Per-CPU fast path
-            8..=64 => {
-                match self.tier0.allocate(size) {
-                    Some(ptr) => {
-                        self.stats.tier0_allocations += 1;
-                        Ok(ptr)
-                    }
-                    None => {
-                        self.stats.allocation_failures += 1;
-                        Err(Error::OutOfMemory)
-                    }
+            8..=64 => match self.tier0.allocate(size) {
+                Some(ptr) => {
+                    self.stats.tier0_allocations += 1;
+                    Ok(ptr)
                 }
-            }
+                None => {
+                    self.stats.allocation_failures += 1;
+                    Err(Error::OutOfMemory)
+                }
+            },
 
             // Tier 1: Per-socket medium path
             65..=65536 => {
                 let socket_id = get_current_socket();
-                self.tier1.allocate(size, socket_id).map(|ptr| {
+                self.tier1.allocate(size, socket_id).inspect(|_ptr| {
                     self.stats.tier1_allocations += 1;
-                    ptr
                 })
             }
 
             // Out of range for Tier 0/1 (would need Tier 2)
             _ => {
                 self.stats.allocation_failures += 1;
-                Err(Error::AllocationFailed(
-                    format!("Allocation size {} out of range for Tier 0/1", size),
-                ))
+                Err(Error::AllocationFailed(format!(
+                    "Allocation size {} out of range for Tier 0/1",
+                    size
+                )))
             }
         }
     }
 
-    /// Deallocate memory (route to appropriate tier)
-    pub fn deallocate(&mut self, ptr: *mut u8, size: usize) -> bool {
+    /// Deallocate memory (route to appropriate tier).
+    ///
+    /// # Safety
+    /// `ptr` must have been obtained from a previous `allocate(size)` call
+    /// on this same `MasterAllocator` with the same `size` (Tier 1 routing
+    /// forwards to `Tier1Allocator::deallocate`, which requires this).
+    pub unsafe fn deallocate(&mut self, ptr: *mut u8, size: usize) -> bool {
         match size {
             // Tier 0
             8..=64 => {
@@ -108,7 +111,7 @@ impl MasterAllocator {
             // Tier 1
             65..=65536 => {
                 let socket_id = get_current_socket();
-                if self.tier1.deallocate(ptr, size, socket_id) {
+                if unsafe { self.tier1.deallocate(ptr, size, socket_id) } {
                     self.stats.tier1_deallocations += 1;
                     true
                 } else {
@@ -198,7 +201,10 @@ mod tests {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
 
         // Need to refill Tier 0 first
-        allocator.tier0.refill_all_caches(10).expect("Failed to refill");
+        allocator
+            .tier0
+            .refill_all_caches(10)
+            .expect("Failed to refill");
 
         // Allocate from Tier 0
         let ptr = allocator.allocate(32).expect("Allocation failed");
@@ -221,7 +227,10 @@ mod tests {
     #[test]
     fn test_master_allocator_mixed_allocations() {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
-        allocator.tier0.refill_all_caches(10).expect("Failed to refill");
+        allocator
+            .tier0
+            .refill_all_caches(10)
+            .expect("Failed to refill");
 
         // Tier 0 allocation
         let ptr0 = allocator.allocate(32).expect("32B allocation failed");
@@ -240,10 +249,13 @@ mod tests {
     #[test]
     fn test_master_allocator_deallocate_tier0() {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
-        allocator.tier0.refill_all_caches(10).expect("Failed to refill");
+        allocator
+            .tier0
+            .refill_all_caches(10)
+            .expect("Failed to refill");
 
         let ptr = allocator.allocate(32).expect("Allocation failed");
-        assert!(allocator.deallocate(ptr, 32));
+        assert!(unsafe { allocator.deallocate(ptr, 32) });
         assert_eq!(allocator.stats.tier0_deallocations, 1);
     }
 
@@ -252,7 +264,7 @@ mod tests {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
 
         let ptr = allocator.allocate(256).expect("Allocation failed");
-        assert!(allocator.deallocate(ptr, 256));
+        assert!(unsafe { allocator.deallocate(ptr, 256) });
         assert_eq!(allocator.stats.tier1_deallocations, 1);
     }
 
@@ -270,7 +282,10 @@ mod tests {
     #[test]
     fn test_master_allocator_efficiency() {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
-        allocator.tier0.refill_all_caches(10).expect("Failed to refill");
+        allocator
+            .tier0
+            .refill_all_caches(10)
+            .expect("Failed to refill");
 
         // No allocations yet
         assert_eq!(allocator.efficiency_percent(), 100.0);
@@ -289,7 +304,9 @@ mod tests {
         // With 1 success and 1 failure, should be 50%
         assert!((efficiency - 50.0).abs() < 0.01);
 
-        allocator.deallocate(ptr, 32);
+        unsafe {
+            allocator.deallocate(ptr, 32);
+        }
     }
 
     #[test]
@@ -303,7 +320,10 @@ mod tests {
     #[test]
     fn test_master_allocator_cycle() {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
-        allocator.tier0.refill_all_caches(20).expect("Failed to refill");
+        allocator
+            .tier0
+            .refill_all_caches(20)
+            .expect("Failed to refill");
 
         let mut ptrs = Vec::new();
 
@@ -317,7 +337,7 @@ mod tests {
 
         // Deallocate all
         for (ptr, size) in ptrs {
-            assert!(allocator.deallocate(ptr, size));
+            assert!(unsafe { allocator.deallocate(ptr, size) });
         }
 
         let stats = allocator.stats();

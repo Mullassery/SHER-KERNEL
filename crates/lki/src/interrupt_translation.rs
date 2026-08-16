@@ -1,9 +1,9 @@
 // SHER LKI: Interrupt Translation
 // Maps Linux request_irq/free_irq to SHER interrupt primitives
 
-use sher_common::{ObjectId, Result, Error};
 use crate::validation::Validator;
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -12,11 +12,11 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IrqTrigger {
-    Rising,       // Rising edge
-    Falling,      // Falling edge
-    HighLevel,    // High level
-    LowLevel,     // Low level
-    Shared,       // Can be shared with other devices
+    Rising,    // Rising edge
+    Falling,   // Falling edge
+    HighLevel, // High level
+    LowLevel,  // Low level
+    Shared,    // Can be shared with other devices
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,7 +86,9 @@ impl InterruptHandler {
     pub fn record_call(&mut self, latency_us: u32) {
         self.call_count += 1;
         self.peak_latency_us = self.peak_latency_us.max(latency_us);
-        self.avg_latency_us = ((self.avg_latency_us as u64 * (self.call_count - 1) + latency_us as u64) / self.call_count) as u32;
+        self.avg_latency_us = ((self.avg_latency_us as u64 * (self.call_count - 1)
+            + latency_us as u64)
+            / self.call_count) as u32;
     }
 
     pub fn record_error(&mut self) {
@@ -101,9 +103,9 @@ impl InterruptHandler {
 #[derive(Debug, Clone, Default)]
 pub struct InterruptManager {
     pub validator: Validator,
-    pub handlers: HashMap<u32, InterruptHandler>,  // irq_number -> handler
+    pub handlers: HashMap<u32, InterruptHandler>, // irq_number -> handler
     pub total_interrupts: u64,
-    pub shared_irqs: HashMap<u32, Vec<ObjectId>>,  // irq_number -> [driver_ids]
+    pub shared_irqs: HashMap<u32, Vec<ObjectId>>, // irq_number -> [driver_ids]
 }
 
 impl InterruptManager {
@@ -128,31 +130,34 @@ impl InterruptManager {
         self.validator.validate_irq(irq)?;
 
         // Check if IRQ already registered
-        if self.handlers.contains_key(&irq) {
-            // Check if sharable (IRQF_SHARED flag)
-            const IRQF_SHARED: u32 = 0x00000080;
-            if (flags & IRQF_SHARED) == 0 {
-                return Err(Error::Driver("IRQ already in use (not shared)".to_string()));
+        match self.handlers.entry(irq) {
+            std::collections::hash_map::Entry::Occupied(_) => {
+                // Check if sharable (IRQF_SHARED flag)
+                const IRQF_SHARED: u32 = 0x00000080;
+                if (flags & IRQF_SHARED) == 0 {
+                    return Err(Error::Driver("IRQ already in use (not shared)".to_string()));
+                }
+
+                // Add to shared list
+                self.shared_irqs.entry(irq).or_default().push(driver_id);
             }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                // Register new handler
+                let mut handler = InterruptHandler::new(driver_id, irq, trigger_type);
 
-            // Add to shared list
-            self.shared_irqs.entry(irq).or_insert_with(Vec::new).push(driver_id);
-        } else {
-            // Register new handler
-            let mut handler = InterruptHandler::new(driver_id, irq, trigger_type);
+                // Set priority based on flags
+                const IRQF_HIGH_PRIO: u32 = 0x00000001;
+                const IRQF_CRITICAL: u32 = 0x00000002;
+                if (flags & IRQF_CRITICAL) != 0 {
+                    handler.priority = IrqPriority::Critical;
+                } else if (flags & IRQF_HIGH_PRIO) != 0 {
+                    handler.priority = IrqPriority::High;
+                }
 
-            // Set priority based on flags
-            const IRQF_HIGH_PRIO: u32 = 0x00000001;
-            const IRQF_CRITICAL: u32 = 0x00000002;
-            if (flags & IRQF_CRITICAL) != 0 {
-                handler.priority = IrqPriority::Critical;
-            } else if (flags & IRQF_HIGH_PRIO) != 0 {
-                handler.priority = IrqPriority::High;
+                handler.enable();
+                entry.insert(handler);
+                self.shared_irqs.insert(irq, vec![driver_id]);
             }
-
-            handler.enable();
-            self.handlers.insert(irq, handler);
-            self.shared_irqs.insert(irq, vec![driver_id]);
         }
 
         self.total_interrupts += 1;
@@ -170,7 +175,9 @@ impl InterruptManager {
         };
 
         if !is_registered {
-            return Err(Error::Driver("Driver did not register this IRQ".to_string()));
+            return Err(Error::Driver(
+                "Driver did not register this IRQ".to_string(),
+            ));
         }
 
         if let Some(handler) = self.handlers.get_mut(&irq) {
@@ -243,9 +250,18 @@ impl InterruptManager {
             avg_latency_us: if self.handlers.is_empty() {
                 0
             } else {
-                self.handlers.values().map(|h| h.avg_latency_us as u64).sum::<u64>() / self.handlers.len() as u64
+                self.handlers
+                    .values()
+                    .map(|h| h.avg_latency_us as u64)
+                    .sum::<u64>()
+                    / self.handlers.len() as u64
             } as u32,
-            peak_latency_us: self.handlers.values().map(|h| h.peak_latency_us).max().unwrap_or(0),
+            peak_latency_us: self
+                .handlers
+                .values()
+                .map(|h| h.peak_latency_us)
+                .max()
+                .unwrap_or(0),
         }
     }
 

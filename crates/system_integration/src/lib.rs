@@ -2,13 +2,22 @@
 //!
 //! End-to-end integration testing of SHER Kernel with Aurora Design System
 //! and Himalayas Browser ecosystem.
+//!
+//! This crate intentionally continues to exercise
+//! `wayland_server::WaylandCompositor` and friends even though they are
+//! `#[deprecated]` (compositor/input policy now lives in SHER-Display) —
+//! it is an internal-only integration-test harness (see `sher_common`'s
+//! sole other consumer, `performance_benchmarks`), not part of the
+//! cross-repo boundary SHER-Graphics/SHER-Display depend on. Silencing the
+//! deprecation warning here is deliberate; do not copy this pattern into
+//! `hal` or any crate real external consumers depend on.
+#![allow(deprecated)]
 
-use sher_common::ObjectId;
-use wayland_server::{WaylandCompositor, WaylandClient, PointerEvent, PointerEventType};
-use gpu_driver::GPUDriver;
 use audio_driver::AudioDriver;
+use gpu_driver::GPUDriver;
 use input_driver::InputDriver;
 use unified_device_manager::UnifiedDeviceManager;
+use wayland_server::WaylandCompositor;
 
 /// Represents a complete application stack integration
 pub struct ApplicationStack {
@@ -98,9 +107,11 @@ impl Default for ApplicationStack {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use input_driver::{InputDevice, InputDeviceType};
-    use gpu_driver::{Connector, ConnectorType, ConnectorStatus, DisplayMode};
     use audio_driver::{AudioDevice, DeviceRole};
+    use gpu_driver::{Connector, ConnectorStatus, ConnectorType, DisplayMode};
+    use input_driver::{InputDevice, InputDeviceType};
+    use sher_common::ObjectId;
+    use wayland_server::{PointerEvent, PointerEventType, WaylandClient};
 
     #[test]
     fn test_stack_initialization() {
@@ -225,9 +236,7 @@ mod tests {
         let connector_id = connector.id.clone();
         let _ = stack.get_gpu_driver_mut().register_connector(connector);
 
-        let result = stack
-            .get_gpu_driver_mut()
-            .set_mode(&connector_id, mode);
+        let result = stack.get_gpu_driver_mut().set_mode(&connector_id, mode);
         assert!(result.is_ok());
         assert_eq!(stack.get_gpu_driver().connector_count(), 1);
     }
@@ -335,14 +344,8 @@ mod tests {
         let _ = stack.get_compositor_mut().connect_client(app1);
         let _ = stack.get_compositor_mut().connect_client(app2);
 
-        let _surface1 = stack
-            .get_compositor_mut()
-            .create_surface(&app1_id)
-            .unwrap();
-        let _surface2 = stack
-            .get_compositor_mut()
-            .create_surface(&app2_id)
-            .unwrap();
+        let _surface1 = stack.get_compositor_mut().create_surface(&app1_id).unwrap();
+        let _surface2 = stack.get_compositor_mut().create_surface(&app2_id).unwrap();
 
         assert_eq!(stack.get_compositor().client_count(), 2);
         assert_eq!(stack.get_compositor().surface_count(), 2);
@@ -506,10 +509,7 @@ mod tests {
         let app_id = gtk_app.id.clone();
         assert!(stack.get_compositor_mut().connect_client(gtk_app).is_ok());
 
-        let main_surface = stack
-            .get_compositor_mut()
-            .create_surface(&app_id)
-            .unwrap();
+        let main_surface = stack.get_compositor_mut().create_surface(&app_id).unwrap();
 
         assert!(stack
             .get_compositor_mut()
@@ -593,7 +593,10 @@ mod tests {
         };
 
         let speaker_id = speaker.id.clone();
-        assert!(stack.get_audio_driver_mut().register_device(speaker).is_ok());
+        assert!(stack
+            .get_audio_driver_mut()
+            .register_device(speaker)
+            .is_ok());
 
         let buffer = stack
             .get_audio_driver_mut()
@@ -652,10 +655,7 @@ mod tests {
             .get_input_driver_mut()
             .register_device(keyboard)
             .is_ok());
-        assert!(stack
-            .get_input_driver_mut()
-            .register_device(mouse)
-            .is_ok());
+        assert!(stack.get_input_driver_mut().register_device(mouse).is_ok());
 
         assert!(stack
             .get_input_driver_mut()
@@ -755,10 +755,7 @@ mod tests {
         assert!(stack.get_compositor_mut().connect_client(app3).is_ok());
 
         for app_id in [app1_id, app2_id, app3_id] {
-            let surface = stack
-                .get_compositor_mut()
-                .create_surface(&app_id)
-                .unwrap();
+            let surface = stack.get_compositor_mut().create_surface(&app_id).unwrap();
 
             let buffer = stack
                 .get_compositor_mut()

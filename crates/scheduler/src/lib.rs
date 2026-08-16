@@ -9,10 +9,12 @@
 //! - TPU
 //! - Remote clusters
 
-pub mod task;
-pub mod queue;
 pub mod heterogeneous;
+pub mod queue;
+pub mod scheduler;
+pub mod task;
 
-pub use task::Task;
-pub use queue::TaskQueue;
 pub use heterogeneous::ComputeTarget;
+pub use queue::TaskQueue;
+pub use scheduler::Scheduler;
+pub use task::Task;

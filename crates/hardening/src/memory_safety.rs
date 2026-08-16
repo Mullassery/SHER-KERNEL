@@ -8,8 +8,8 @@
 //! - Alignment validation
 //! - Overflow detection
 
-use std::collections::{HashMap, HashSet};
 use sher_common::{ObjectId, Result};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug)]
 pub struct MemorySafetyAudit {
@@ -35,6 +35,12 @@ pub struct MemorySafetyValidator {
     double_free_attempts: usize,
 }
 
+impl Default for MemorySafetyValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemorySafetyValidator {
     pub fn new() -> Self {
         MemorySafetyValidator {
@@ -45,22 +51,32 @@ impl MemorySafetyValidator {
         }
     }
 
-    pub fn register_allocation(&mut self, id: ObjectId, size: usize, alignment: usize) -> Result<()> {
+    pub fn register_allocation(
+        &mut self,
+        id: ObjectId,
+        size: usize,
+        alignment: usize,
+    ) -> Result<()> {
         if size == 0 {
-            return Err(sher_common::Error::Memory("Zero-size allocation not allowed".to_string()));
+            return Err(sher_common::Error::Memory(
+                "Zero-size allocation not allowed".to_string(),
+            ));
         }
 
         if !Self::is_valid_alignment(alignment) {
             return Err(sher_common::Error::Memory("Invalid alignment".to_string()));
         }
 
-        self.allocations.insert(id.clone(), MemorySafetyAudit {
-            allocation_id: id,
-            size,
-            alignment,
-            freed: false,
-            use_count: 0,
-        });
+        self.allocations.insert(
+            id,
+            MemorySafetyAudit {
+                allocation_id: id,
+                size,
+                alignment,
+                freed: false,
+                use_count: 0,
+            },
+        );
 
         Ok(())
     }
@@ -68,13 +84,17 @@ impl MemorySafetyValidator {
     pub fn record_use(&mut self, id: &ObjectId) -> Result<()> {
         if self.freed_pointers.contains(id) {
             self.use_after_free_attempts += 1;
-            return Err(sher_common::Error::Memory("Use-after-free detected".to_string()));
+            return Err(sher_common::Error::Memory(
+                "Use-after-free detected".to_string(),
+            ));
         }
 
         if let Some(audit) = self.allocations.get_mut(id) {
             if audit.freed {
                 self.use_after_free_attempts += 1;
-                return Err(sher_common::Error::Memory("Use-after-free detected".to_string()));
+                return Err(sher_common::Error::Memory(
+                    "Use-after-free detected".to_string(),
+                ));
             }
             audit.use_count += 1;
             Ok(())
@@ -86,16 +106,20 @@ impl MemorySafetyValidator {
     pub fn record_free(&mut self, id: &ObjectId) -> Result<()> {
         if self.freed_pointers.contains(id) {
             self.double_free_attempts += 1;
-            return Err(sher_common::Error::Memory("Double-free detected".to_string()));
+            return Err(sher_common::Error::Memory(
+                "Double-free detected".to_string(),
+            ));
         }
 
         if let Some(audit) = self.allocations.get_mut(id) {
             if audit.freed {
                 self.double_free_attempts += 1;
-                return Err(sher_common::Error::Memory("Double-free detected".to_string()));
+                return Err(sher_common::Error::Memory(
+                    "Double-free detected".to_string(),
+                ));
             }
             audit.freed = true;
-            self.freed_pointers.insert(id.clone());
+            self.freed_pointers.insert(*id);
             Ok(())
         } else {
             Err(sher_common::Error::Memory("Unknown allocation".to_string()))
@@ -105,7 +129,9 @@ impl MemorySafetyValidator {
     pub fn check_bounds(&self, id: &ObjectId, offset: usize, size: usize) -> Result<()> {
         if let Some(audit) = self.allocations.get(id) {
             if offset + size > audit.size {
-                return Err(sher_common::Error::Memory("Buffer overflow detected".to_string()));
+                return Err(sher_common::Error::Memory(
+                    "Buffer overflow detected".to_string(),
+                ));
             }
             Ok(())
         } else {
@@ -134,7 +160,8 @@ impl MemorySafetyValidator {
             }
         }
 
-        let total_checks = self.allocations.len() * 3 + self.use_after_free_attempts + self.double_free_attempts;
+        let total_checks =
+            self.allocations.len() * 3 + self.use_after_free_attempts + self.double_free_attempts;
 
         AuditResult {
             passed: failed_checks == 0,
@@ -145,9 +172,10 @@ impl MemorySafetyValidator {
     }
 
     pub fn get_leaked_allocations(&self) -> Vec<(ObjectId, usize)> {
-        self.allocations.iter()
+        self.allocations
+            .iter()
             .filter(|(_, audit)| !audit.freed)
-            .map(|(id, audit)| (id.clone(), audit.size))
+            .map(|(id, audit)| (*id, audit.size))
             .collect()
     }
 

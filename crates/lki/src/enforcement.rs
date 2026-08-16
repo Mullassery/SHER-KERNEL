@@ -1,9 +1,9 @@
 // SHER LKI: Security Enforcement
 // Enforces capability grants and security policies
 
-use sher_common::{ObjectId, Result, Error};
-use crate::security::{Capability, CapabilityManager, SecurityPolicy, SecurityLevel};
+use crate::security::{Capability, CapabilityManager, SecurityLevel, SecurityPolicy};
 use serde::{Deserialize, Serialize};
+use sher_common::{Error, ObjectId, Result};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -35,7 +35,11 @@ impl SecurityContext {
     }
 
     /// Check if operation is allowed
-    pub fn check_operation(&mut self, capability: Capability, current_time_ms: u64) -> Result<bool> {
+    pub fn check_operation(
+        &mut self,
+        capability: Capability,
+        current_time_ms: u64,
+    ) -> Result<bool> {
         self.operation_count += 1;
 
         match self.policy.security_level {
@@ -44,7 +48,11 @@ impl SecurityContext {
                 Ok(true)
             }
             SecurityLevel::Permissive => {
-                if self.capability_manager.has_capability(self.driver_id, capability, current_time_ms) {
+                if self.capability_manager.has_capability(
+                    self.driver_id,
+                    capability,
+                    current_time_ms,
+                ) {
                     self.approved_operations += 1;
                     Ok(true)
                 } else {
@@ -53,7 +61,11 @@ impl SecurityContext {
                 }
             }
             SecurityLevel::Balanced | SecurityLevel::Strict | SecurityLevel::Critical => {
-                if self.capability_manager.has_capability(self.driver_id, capability, current_time_ms) {
+                if self.capability_manager.has_capability(
+                    self.driver_id,
+                    capability,
+                    current_time_ms,
+                ) {
                     self.approved_operations += 1;
                     Ok(true)
                 } else {
@@ -65,10 +77,17 @@ impl SecurityContext {
     }
 
     /// Check with reauthentication requirement
-    pub fn check_with_reauthentication(&mut self, capability: Capability, current_time_ms: u64) -> Result<bool> {
+    pub fn check_with_reauthentication(
+        &mut self,
+        capability: Capability,
+        current_time_ms: u64,
+    ) -> Result<bool> {
         self.operation_count += 1;
 
-        match self.capability_manager.check_with_reauth(self.driver_id, capability, current_time_ms) {
+        match self
+            .capability_manager
+            .check_with_reauth(self.driver_id, capability, current_time_ms)
+        {
             Ok(needs_reauth) => {
                 self.approved_operations += 1;
                 Ok(needs_reauth)
@@ -108,7 +127,11 @@ impl SecurityEnforcer {
     }
 
     /// Register driver with security context
-    pub fn register_driver(&mut self, driver_id: ObjectId, policy: SecurityPolicy) -> Result<ObjectId> {
+    pub fn register_driver(
+        &mut self,
+        driver_id: ObjectId,
+        policy: SecurityPolicy,
+    ) -> Result<ObjectId> {
         let context = SecurityContext::new(driver_id, policy);
         let context_id = context.context_id;
         self.contexts.insert(context_id, context);
@@ -125,7 +148,12 @@ impl SecurityEnforcer {
     }
 
     /// Enforce capability check
-    pub fn enforce(&mut self, context_id: ObjectId, capability: Capability, current_time_ms: u64) -> Result<()> {
+    pub fn enforce(
+        &mut self,
+        context_id: ObjectId,
+        capability: Capability,
+        current_time_ms: u64,
+    ) -> Result<()> {
         self.total_checks += 1;
 
         if let Some(context) = self.contexts.get_mut(&context_id) {
@@ -236,7 +264,13 @@ impl PermissionChecker {
     }
 
     /// Check permission with caching
-    pub fn check(&mut self, enforcer: &mut SecurityEnforcer, context_id: ObjectId, capability: Capability, current_time_ms: u64) -> Result<()> {
+    pub fn check(
+        &mut self,
+        enforcer: &mut SecurityEnforcer,
+        context_id: ObjectId,
+        capability: Capability,
+        current_time_ms: u64,
+    ) -> Result<()> {
         self.checks_performed += 1;
 
         // Check cache
@@ -258,7 +292,8 @@ impl PermissionChecker {
                 Ok(())
             }
             Err(e) => {
-                self.capability_cache.insert((context_id, capability), false);
+                self.capability_cache
+                    .insert((context_id, capability), false);
                 self.checks_failed += 1;
                 Err(e)
             }
@@ -267,7 +302,8 @@ impl PermissionChecker {
 
     /// Clear cache on privilege change
     pub fn clear_cache(&mut self, context_id: ObjectId) {
-        self.capability_cache.retain(|(ctx_id, _), _| *ctx_id != context_id);
+        self.capability_cache
+            .retain(|(ctx_id, _), _| *ctx_id != context_id);
     }
 
     /// Clear all cache

@@ -2,15 +2,18 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::memory_translation::LinuxMemoryAllocator;
-    use crate::interrupt_translation::{InterruptManager, InterruptHandler, IrqTrigger};
+    use crate::audit::{AuditEntry, AuditFilter, AuditLevel, AuditLog};
     use crate::device_translation::{
-        DeviceManager, PciDriver, PciDevice, PciDeviceId, DeviceBus, BusType,
-        BlockDevice, BlockDeviceManager, BlockDeviceType, NetworkDevice, NetworkDeviceManager, NetDeviceType,
+        BlockDevice, BlockDeviceManager, BlockDeviceType, BusType, DeviceBus, DeviceManager,
+        NetDeviceType, NetworkDevice, NetworkDeviceManager, PciDevice, PciDeviceId, PciDriver,
     };
-    use crate::audit::{AuditLog, AuditEntry, AuditLevel, AuditFilter};
-    use crate::security::{Capability, PermissionTier, CapabilityGrant, CapabilityManager, SecurityPolicy, SecurityLevel, ReauthMethod};
-    use crate::enforcement::{SecurityContext, SecurityEnforcer, PermissionChecker};
+    use crate::enforcement::{PermissionChecker, SecurityContext, SecurityEnforcer};
+    use crate::interrupt_translation::{InterruptHandler, InterruptManager, IrqTrigger};
+    use crate::memory_translation::LinuxMemoryAllocator;
+    use crate::security::{
+        Capability, CapabilityGrant, CapabilityManager, PermissionTier, ReauthMethod,
+        SecurityLevel, SecurityPolicy,
+    };
     use crate::validation::Validator;
     use sher_common::ObjectId;
 
@@ -296,7 +299,9 @@ mod tests {
 
         const IRQF_SHARED: u32 = 0x00000080;
 
-        manager.request_irq(driver1, 32, IrqTrigger::Rising, IRQF_SHARED).ok();
+        manager
+            .request_irq(driver1, 32, IrqTrigger::Rising, IRQF_SHARED)
+            .ok();
         let result = manager.request_irq(driver2, 32, IrqTrigger::Rising, IRQF_SHARED);
 
         assert!(result.is_ok());
@@ -308,7 +313,9 @@ mod tests {
         let mut manager = InterruptManager::new();
         let driver_id = ObjectId::new();
 
-        manager.request_irq(driver_id, 32, IrqTrigger::Rising, 0).ok();
+        manager
+            .request_irq(driver_id, 32, IrqTrigger::Rising, 0)
+            .ok();
         let result = manager.free_irq(32, driver_id);
 
         assert!(result.is_ok());
@@ -332,7 +339,9 @@ mod tests {
         let mut manager = InterruptManager::new();
         let driver_id = ObjectId::new();
 
-        manager.request_irq(driver_id, 32, IrqTrigger::Rising, 0).ok();
+        manager
+            .request_irq(driver_id, 32, IrqTrigger::Rising, 0)
+            .ok();
         assert_eq!(manager.active_interrupts(), 1);
 
         manager.disable_irq(32).ok();
@@ -362,7 +371,9 @@ mod tests {
         let driver2 = ObjectId::new();
 
         manager.request_irq(driver1, 32, IrqTrigger::Rising, 0).ok();
-        manager.request_irq(driver2, 33, IrqTrigger::Falling, 0).ok();
+        manager
+            .request_irq(driver2, 33, IrqTrigger::Falling, 0)
+            .ok();
 
         let stats = manager.get_stats();
         assert_eq!(stats.total_registered, 2);
@@ -385,8 +396,8 @@ mod tests {
         let mut log = AuditLog::new(100);
         let driver_id = ObjectId::new();
 
-        let entry = AuditEntry::new(driver_id, "kmalloc", "alloc 1024 bytes")
-            .with_result("success");
+        let entry =
+            AuditEntry::new(driver_id, "kmalloc", "alloc 1024 bytes").with_result("success");
 
         log.log(entry);
         assert_eq!(log.total_entries(), 1);
@@ -456,13 +467,23 @@ mod tests {
         let mut log = AuditLog::new(100);
         let driver_id = ObjectId::new();
 
-        log.log(AuditEntry::new(driver_id, "kmalloc", "op1").with_level(AuditLevel::Info).with_duration(100));
-        log.log(AuditEntry::new(driver_id, "kmalloc", "op2").with_level(AuditLevel::Error).with_duration(50));
-        log.log(AuditEntry::new(driver_id, "kfree", "op3").with_level(AuditLevel::Info).with_duration(200));
+        log.log(
+            AuditEntry::new(driver_id, "kmalloc", "op1")
+                .with_level(AuditLevel::Info)
+                .with_duration(100),
+        );
+        log.log(
+            AuditEntry::new(driver_id, "kmalloc", "op2")
+                .with_level(AuditLevel::Error)
+                .with_duration(50),
+        );
+        log.log(
+            AuditEntry::new(driver_id, "kfree", "op3")
+                .with_level(AuditLevel::Info)
+                .with_duration(200),
+        );
 
-        let filter = AuditFilter::new()
-            .with_api("kmalloc")
-            .with_min_latency(100);
+        let filter = AuditFilter::new().with_api("kmalloc").with_min_latency(100);
 
         let entries = log.entries();
         let matching: Vec<_> = entries.iter().filter(|e| filter.matches(e)).collect();
@@ -614,7 +635,7 @@ mod tests {
         assert_eq!(bus.device_count(), 1);
 
         bus.add_device(dev_id);
-        assert_eq!(bus.device_count(), 1);  // No duplicates
+        assert_eq!(bus.device_count(), 1); // No duplicates
     }
 
     #[test]
@@ -660,7 +681,9 @@ mod tests {
         let device_ids = vec![PciDeviceId::new(0x8086, 0x1234)];
 
         manager.register_pci_driver("intel_ether", device_ids).ok();
-        let device_id = manager.register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0).ok();
+        let device_id = manager
+            .register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0)
+            .ok();
 
         if let Some(dev_id) = device_id {
             let driver = manager.get_driver_for_device(dev_id);
@@ -690,9 +713,15 @@ mod tests {
     fn test_device_manager_find_by_vendor() {
         let mut manager = DeviceManager::new();
 
-        manager.register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0).ok();
-        manager.register_pci_device(PciDeviceId::new(0x8086, 0x5678), 0, 16, 0).ok();
-        manager.register_pci_device(PciDeviceId::new(0x1000, 0x9999), 0, 17, 0).ok();
+        manager
+            .register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0)
+            .ok();
+        manager
+            .register_pci_device(PciDeviceId::new(0x8086, 0x5678), 0, 16, 0)
+            .ok();
+        manager
+            .register_pci_device(PciDeviceId::new(0x1000, 0x9999), 0, 17, 0)
+            .ok();
 
         let devices = manager.find_devices_by_vendor(0x8086);
         assert_eq!(devices.len(), 2);
@@ -716,9 +745,15 @@ mod tests {
     fn test_device_manager_stats() {
         let mut manager = DeviceManager::new();
 
-        manager.register_pci_driver("driver1", vec![PciDeviceId::new(0x8086, 0x1234)]).ok();
-        manager.register_pci_driver("driver2", vec![PciDeviceId::new(0x1000, 0x5678)]).ok();
-        manager.register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0).ok();
+        manager
+            .register_pci_driver("driver1", vec![PciDeviceId::new(0x8086, 0x1234)])
+            .ok();
+        manager
+            .register_pci_driver("driver2", vec![PciDeviceId::new(0x1000, 0x5678)])
+            .ok();
+        manager
+            .register_pci_device(PciDeviceId::new(0x8086, 0x1234), 0, 15, 0)
+            .ok();
 
         let stats = manager.get_stats();
         assert_eq!(stats.total_drivers, 2);
@@ -812,9 +847,15 @@ mod tests {
     fn test_network_device_manager_list() {
         let mut manager = NetworkDeviceManager::new();
 
-        manager.register_net_device(NetworkDevice::new(NetDeviceType::Ethernet, "eth0")).ok();
-        manager.register_net_device(NetworkDevice::new(NetDeviceType::Ethernet, "eth1")).ok();
-        manager.register_net_device(NetworkDevice::new(NetDeviceType::Loopback, "lo")).ok();
+        manager
+            .register_net_device(NetworkDevice::new(NetDeviceType::Ethernet, "eth0"))
+            .ok();
+        manager
+            .register_net_device(NetworkDevice::new(NetDeviceType::Ethernet, "eth1"))
+            .ok();
+        manager
+            .register_net_device(NetworkDevice::new(NetDeviceType::Loopback, "lo"))
+            .ok();
 
         let devices = manager.list_devices();
         assert_eq!(devices.len(), 3);
@@ -827,7 +868,8 @@ mod tests {
     #[test]
     fn test_capability_grant_new() {
         let driver_id = ObjectId::new();
-        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
 
         assert_eq!(grant.driver_id, driver_id);
         assert_eq!(grant.capability, Capability::AllocateMemory);
@@ -837,8 +879,10 @@ mod tests {
     #[test]
     fn test_capability_grant_with_duration() {
         let driver_id = ObjectId::new();
-        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low)
-            .with_duration(1_800_000).unwrap();
+        let grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low)
+                .with_duration(1_800_000)
+                .unwrap();
 
         assert_eq!(grant.lifetime_ms(), 1_800_000);
     }
@@ -846,17 +890,19 @@ mod tests {
     #[test]
     fn test_capability_grant_duration_limit() {
         let driver_id = ObjectId::new();
-        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::High);
+        let grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::High);
 
         // High tier max is 2 hours (7,200,000 ms)
-        let result = grant.with_duration(14_400_000);  // 4 hours
+        let result = grant.with_duration(14_400_000); // 4 hours
         assert!(result.is_err());
     }
 
     #[test]
     fn test_capability_grant_validity() {
         let driver_id = ObjectId::new();
-        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let mut grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
         grant.granted_at_ms = 1000;
         grant.expires_at_ms = 5000;
 
@@ -869,7 +915,8 @@ mod tests {
     #[test]
     fn test_capability_grant_time_remaining() {
         let driver_id = ObjectId::new();
-        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let mut grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
         grant.granted_at_ms = 1000;
         grant.expires_at_ms = 5000;
 
@@ -890,7 +937,8 @@ mod tests {
     fn test_capability_manager_grant() {
         let mut manager = CapabilityManager::new();
         let driver_id = ObjectId::new();
-        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
 
         let result = manager.grant(grant);
         assert!(result.is_ok());
@@ -901,7 +949,8 @@ mod tests {
     fn test_capability_manager_has_capability() {
         let mut manager = CapabilityManager::new();
         let driver_id = ObjectId::new();
-        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let mut grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
         grant.granted_at_ms = 1000;
         grant.expires_at_ms = 5000;
 
@@ -915,7 +964,8 @@ mod tests {
     fn test_capability_manager_revoke() {
         let mut manager = CapabilityManager::new();
         let driver_id = ObjectId::new();
-        let grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
 
         manager.grant(grant).ok();
         assert_eq!(manager.total_grants, 1);
@@ -977,7 +1027,8 @@ mod tests {
         let policy = SecurityPolicy::new(driver_id, SecurityLevel::Strict);
         let mut context = SecurityContext::new(driver_id, policy);
 
-        let mut grant = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let mut grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
         grant.granted_at_ms = 1000;
         grant.expires_at_ms = 5000;
 
@@ -1052,7 +1103,7 @@ mod tests {
         let _ = checker.check(&mut enforcer, context_id, Capability::AllocateMemory, 1000);
 
         assert_eq!(checker.checks_performed, 2);
-        assert_eq!(checker.capability_cache.len(), 1);  // Cached result
+        assert_eq!(checker.capability_cache.len(), 1); // Cached result
     }
 
     #[test]
@@ -1076,11 +1127,13 @@ mod tests {
         let mut manager = CapabilityManager::new();
         let driver_id = ObjectId::new();
 
-        let mut grant1 = CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        let mut grant1 =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
         grant1.granted_at_ms = 1000;
         grant1.expires_at_ms = 2000;
 
-        let mut grant2 = CapabilityGrant::new(driver_id, Capability::RegisterDevice, PermissionTier::Low);
+        let mut grant2 =
+            CapabilityGrant::new(driver_id, Capability::RegisterDevice, PermissionTier::Low);
         grant2.granted_at_ms = 1000;
         grant2.expires_at_ms = 5000;
 
@@ -1094,8 +1147,9 @@ mod tests {
     #[test]
     fn test_reauth_requirement() {
         let driver_id = ObjectId::new();
-        let grant = CapabilityGrant::new(driver_id, Capability::RegisterDevice, PermissionTier::High)
-            .with_reauth(ReauthMethod::Biometric);
+        let grant =
+            CapabilityGrant::new(driver_id, Capability::RegisterDevice, PermissionTier::High)
+                .with_reauth(ReauthMethod::Biometric);
 
         assert!(grant.reauth_required);
         assert_eq!(grant.reauth_method, ReauthMethod::Biometric);
@@ -1109,8 +1163,12 @@ mod tests {
 
         let context_id = enforcer.register_driver(driver_id, policy).unwrap();
 
-        enforcer.enforce(context_id, Capability::AllocateMemory, 1000).ok();
-        enforcer.enforce(context_id, Capability::RegisterDevice, 1000).ok();
+        enforcer
+            .enforce(context_id, Capability::AllocateMemory, 1000)
+            .ok();
+        enforcer
+            .enforce(context_id, Capability::RegisterDevice, 1000)
+            .ok();
 
         let stats = enforcer.get_stats();
         assert_eq!(stats.total_checks, 2);

@@ -46,6 +46,12 @@ pub struct Profiler {
     active_timers: HashMap<String, Instant>,
 }
 
+impl Default for Profiler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Profiler {
     pub fn new() -> Self {
         Profiler {
@@ -57,23 +63,29 @@ impl Profiler {
     }
 
     pub fn start_timer(&mut self, operation: &str) {
-        self.active_timers.insert(operation.to_string(), Instant::now());
+        self.active_timers
+            .insert(operation.to_string(), Instant::now());
     }
 
     pub fn end_timer(&mut self, operation: &str) {
         if let Some(start_time) = self.active_timers.remove(operation) {
             let elapsed_ns = start_time.elapsed().as_nanos() as u64;
-            self.measurements.entry(operation.to_string())
-                .or_insert_with(Vec::new)
+            self.measurements
+                .entry(operation.to_string())
+                .or_default()
                 .push(elapsed_ns);
         }
     }
 
     pub fn record_operation(&mut self, operation: &str, latency_ns: u64) {
-        self.measurements.entry(operation.to_string())
-            .or_insert_with(Vec::new)
+        self.measurements
+            .entry(operation.to_string())
+            .or_default()
             .push(latency_ns);
-        *self.operations_completed.entry(operation.to_string()).or_insert(0) += 1;
+        *self
+            .operations_completed
+            .entry(operation.to_string())
+            .or_insert(0) += 1;
     }
 
     pub fn get_latency_metrics(&self, operation: &str) -> Option<LatencyMetrics> {
@@ -105,7 +117,11 @@ impl Profiler {
         })
     }
 
-    pub fn get_throughput_metrics(&self, operation: &str, duration_ms: u64) -> Option<ThroughputMetrics> {
+    pub fn get_throughput_metrics(
+        &self,
+        operation: &str,
+        duration_ms: u64,
+    ) -> Option<ThroughputMetrics> {
         let total_ops = self.operations_completed.get(operation)?;
         let total_time_ms = if duration_ms == 0 {
             *self.total_time_ms.get(operation).unwrap_or(&1)
@@ -140,16 +156,14 @@ impl Profiler {
             let threshold_idx = ((sorted.len() as f64) * (threshold_percentile / 100.0)) as usize;
             let threshold_value = sorted[threshold_idx.min(sorted.len() - 1)];
 
-            let outliers = sorted.iter()
-                .filter(|&&s| s > threshold_value)
-                .count();
+            let outliers = sorted.iter().filter(|&&s| s > threshold_value).count();
 
             if outliers > 0 {
                 bottlenecks.push((operation.clone(), threshold_value));
             }
         }
 
-        bottlenecks.sort_by(|a, b| b.1.cmp(&a.1));
+        bottlenecks.sort_by_key(|b| std::cmp::Reverse(b.1));
         bottlenecks
     }
 
@@ -164,7 +178,7 @@ impl Profiler {
         let mut report = String::from("SHER Kernel Performance Report\n");
         report.push_str("================================\n\n");
 
-        for (operation, _) in &self.operations_completed {
+        for operation in self.operations_completed.keys() {
             if let Some(metrics) = self.get_latency_metrics(operation) {
                 report.push_str(&format!(
                     "{}: min={:.2}μs, avg={:.2}μs, p95={:.2}μs, p99={:.2}μs, max={:.2}μs ({} samples)\n",

@@ -69,3 +69,42 @@ impl Lifecycle {
         self.state == State::Running
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_state_is_initializing() {
+        let lc = Lifecycle::default();
+        assert_eq!(lc.state, State::Initializing);
+        assert!(lc.started_at.is_none());
+        assert!(!lc.is_running());
+    }
+
+    #[test]
+    fn start_transitions_to_running_and_stamps_time() {
+        let mut lc = Lifecycle::default();
+        lc.start();
+        assert!(lc.is_running());
+        assert!(lc.started_at.is_some());
+    }
+
+    #[test]
+    fn stop_transitions_to_stopped_and_stamps_time() {
+        let mut lc = Lifecycle::default();
+        lc.start();
+        lc.stop();
+        assert_eq!(lc.state, State::Stopped);
+        assert!(lc.stopped_at.is_some());
+        assert!(!lc.is_running());
+    }
+
+    #[test]
+    fn mark_failed_records_error_message() {
+        let mut lc = Lifecycle::default();
+        lc.mark_failed("driver panicked");
+        assert_eq!(lc.state, State::Failed);
+        assert_eq!(lc.last_error.as_deref(), Some("driver panicked"));
+    }
+}
