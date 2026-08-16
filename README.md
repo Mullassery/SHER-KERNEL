@@ -1,382 +1,165 @@
-# SHER Kernel v1.0.0
+# SHER Kernel
 
-**Production-Ready | AI-Native | Security-First | High-Performance**
+**A userspace prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts — not a bootable kernel.**
 
 ---
 
-## The Problem
+## What this project actually is
 
-Today's operating systems were designed for a different era. Linux (1991) predates AI, containerization, and real-time systems at scale. The result:
+SHER Kernel is a Rust **workspace of 40 userspace crates** (`std` + `tokio`, no `no_std`) that prototypes what the internal APIs of a future, from-scratch OS kernel *might* look like: a capability-based object model, a priority scheduler, tiered memory bookkeeping, a driver lifecycle/registry, crash recovery, and an A/B transactional updater.
 
-- **Security is bolted-on**, not architectural — adding overhead without guarantees
-- **Drivers crash the entire system** — a single bad driver takes everything down
-- **Performance is unpredictable** — no way to guarantee latency or throughput
-- **AI workloads fight the kernel** — resource allocation is reactive, not predictive
-- **Hardware compatibility comes at a cost** — 30+ years of legacy cruft makes optimization nearly impossible
+It is **not**:
+- A bootable kernel. There is no bootloader, no ring-0/bare-metal code, no real MMU/interrupt-controller programming anywhere in this repository.
+- A Linux replacement you can install or boot.
+- A validated performance comparison against Linux (see [Performance notes](#performance-notes) below for what the numbers in this repo's docs actually measure).
 
-## The SHER Solution
+It **is**:
+- A working, tested simulation of kernel-shaped subsystems, runnable as an ordinary process on macOS/Linux.
+- A reasonable place to prototype and unit-test object-model/scheduling/security-policy ideas before any of them would touch real hardware.
+- Honest, as of this revision, about which parts are real logic vs. which parts are placeholders for things that fundamentally require kernel privileges (see below).
 
-**SHER Kernel v1.0.0** is a completely new operating system kernel designed from first principles for:
+If you came here expecting a kernel you can boot on bare metal, this is not that project (yet, if ever). If you came here to look at how a capability-based, driver-isolated object model could be designed and tested in Rust, that's exactly what's here.
 
-- **AI-native architecture** — inference engines, anomaly detection, and predictive allocation built into the core
-- **Security by default** — capability-based permissions, mandatory driver isolation, zero-trust validation
-- **Deterministic performance** — predictable latency, efficient resource utilization, adaptive scheduling
-- **Hardware integration** — 6-layer GPU/Audio/Input driver stack with Wayland compositor
-- **Clean slate for AI/ML/robotics workloads** — no legacy constraints, just optimal design
+## Status
 
-**SHER is not a Linux fork.** It runs Linux drivers without inheriting Linux internals, using an engineered translation layer instead.
+- **764 unit/integration tests, 100% passing** (`cargo test --workspace`)
+- **`cargo clippy --workspace -- -D warnings`**: clean
+- **`cargo fmt --check`**: clean
+- 40 crates surveyed; the ones that were near-empty stubs (`pub fn x() {}`) have been implemented with real, tested logic — see the breakdown below.
+- Not published anywhere (no crates.io/PyPI); consumed by sibling repos (`SHER-Graphics`, `SHER-Display`) via Cargo path dependencies.
 
-## Status: Production Ready
-
-✅ **v1.0.0 Released** — August 7, 2026  
-✅ **543 Comprehensive Tests** — 100% passing  
-✅ **21,000+ Lines of Code** — Production grade  
-✅ **13 Phases Complete** — Kernel + Hardware + Integration + Hardening  
-✅ **Complete Documentation** — Installation, API, deployment guides  
-✅ **Security Audit** — Input validation, threat scoring, audit trail  
-✅ **Performance Verified** — <10ms latency, >1000 ops/sec throughput
-
-## Quick Start (5 Minutes)
+## Quick Start
 
 ```bash
-# Clone the repository
 git clone https://github.com/Mullassery/SHER-KERNEL.git
 cd SHER-KERNEL
 
-# Run all tests (543 comprehensive tests)
-cargo test --lib
+# Run the full test suite
+cargo test --workspace
 
-# Expected: 543 tests passing in ~5 seconds
+# Lint and format checks
+cargo clippy --workspace -- -D warnings
+cargo fmt --check
 
-# Run specific test suites
-cargo test --lib --package security_audit          # Security hardening (13 tests)
-cargo test --lib --package performance_optimization # Performance tuning (14 tests)
-cargo test --lib --package system_integration       # System integration (21 tests)
-cargo test --lib --package performance_benchmarks   # Performance measurement (14 tests)
+# Build everything
+cargo build --workspace
 
-# Build optimized release binary
-cargo build --release
-
-# Install locally
-cargo install --path .
+# Run the CLI (prints an accurate status summary, not a boot sequence)
+cargo run --bin sher-kernel -- --status
 ```
 
-You now have SHER Kernel v1.0.0 fully installed and tested locally.
+## What's real vs. simulated
 
-## Installation & Deployment
+This is the honest part. Every crate falls into one of three buckets.
 
-For production deployment, see [INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md):
-- **Docker**: `docker build -t sher-kernel:1.0.0 .`
-- **Kubernetes**: YAML deployment manifests included
-- **Bare Metal**: Systemd service configuration
-- **Configuration**: Environment variables and config files
+### Real, tested userspace logic (no hardware claims)
 
-## What SHER Actually Solves
+These implement actual algorithms/state machines and have unit tests exercising them — they are genuine, just not privileged:
 
-### 1. Security That Doesn't Require Layering
-- Capability-based permissions from day one (not SELinux/AppArmor bolted on top)
-- Every driver runs in isolated sandbox — crashed driver doesn't crash system
-- Zero-trust model: every operation validated before execution
-- Time-bounded permissions with automatic expiration
+| Crate | What's real |
+|---|---|
+| `common` | Core types (`ObjectId`, `Capability`, error types) |
+| `objectmodel` | Kernel object identity, lifecycle state machine, time-bounded capability grants, telemetry/health |
+| `scheduler` | Priority-queue task scheduler (highest-priority-first, FIFO tie-break), per-target queues |
+| `compute` | Shared priority work queue backing simulated CPU/GPU/NPU/DSP dispatch |
+| `memory` | Tiered slab allocators (Tier 0 per-CPU, Tier 1 per-socket), master allocator routing, DMA buffer bookkeeping, page-table map/unmap |
+| `device_manager` | Device registry, state machine, hot-plug event queue |
+| `driver_runtime` | Driver container lifecycle, sandboxing policy |
+| `security` | Capability grants, sandbox policy, audit log |
+| `interrupt` | Interrupt registration, shared-IRQ priority dispatch, enable/disable — **dispatch is simulated invocation bookkeeping, not real IRQ handling** |
+| `diagnostics` | Fixed-capacity ring buffer, counter/gauge/event telemetry collector |
+| `services` | Profile-based (Server/Workstation/Headless) lazy service-loading policy |
+| `snapshot` | Versioned snapshot store with instant-rollback pointer semantics |
+| `updater` | A/B transactional update state machine (download → verify → boot-test → commit/rollback) built on `recovery` |
+| `recovery` | Immutable A/B partition bookkeeping, boot pointer with rollback, health-check probes, crash-recovery backoff/quarantine, watchdog heartbeats |
+| `compatibility` | Linux/POSIX syscall-name → SHER-subsystem lookup tables (not a binary-compatible syscall ABI) |
+| `networking`, `storage` | Device registries with MTU-checked send/receive and bounds-checked in-memory block I/O — **simulated, no real NIC/disk access** |
+| `aro` | Host memory-tier detection via `/proc/meminfo` / `sysctl` (real on Linux/macOS, documented fallback elsewhere), battery/thermal adaptation policy |
+| `runtime` | Lazy service registry |
+| `ai` | Anomaly detection (memory-leak/interrupt-storm/DMA-abuse heuristics), predictive allocation, adaptive scheduling, reinforcement learning — real logic operating on synthetic/caller-supplied metrics, not live kernel telemetry |
+| `lki` | Linux Kernel Interface: broader syscall-name → SHER-primitive translation with validation and security/audit layers |
+| `hal`, `gpu_driver`, `audio_driver`, `input_driver`, `wayland_server`, `unified_device_manager` | Hardware Abstraction Layer and driver-shaped APIs consumed by sibling repos (see below) — real Rust logic, but they do not talk to physical GPU/audio/input hardware |
+| `hardening`, `security_audit`, `performance_optimization`, `recovery`, `profiling`, `digital_twins`, `system_integration`, `performance_benchmarks`, `release_engineering`, `benchmarks` | Real, tested supporting subsystems (memory-safety checks, syscall hardening, object pooling, profiling, event replay, integration test harnesses, release/version bookkeeping) |
+| `kernel` | Orchestrates the above into a single in-process `SherKernel` with audit logging, AI service wiring, and status reporting |
 
-### 2. Drivers That Don't Crash Everything
-- Containerized driver execution with resource limits
-- Network isolation, memory limits, syscall whitelisting
-- Automatic restart on failure with exponential backoff
-- Capability-based permission model per-driver
+### Explicitly simulated — fundamentally requires hardware/kernel privileges
 
-### 3. Performance That's Predictable
-- Lock-free per-CPU memory allocation (sub-microsecond)
-- Event-driven architecture (no constant polling)
-- Deterministic overhead < 25% vs Linux
-- Real-time strategy selection for scheduling
+These are kept as clearly-labeled simulations rather than pretending to do real hardware I/O, because doing them for real requires ring-0 access or root/raw-device access this userspace crate does not have:
 
-### 4. AI Workloads That Work Natively
-- Anomaly detection engines (memory leaks, interrupt storms, DMA abuse)
-- Predictive resource allocation (1-second ahead forecasts)
-- Adaptive scheduling (Aggressive/Balanced/Conservative/RealTime modes)
-- Continuous learning from driver behavior patterns
-- Inference engine with sub-millisecond decision latency
+| Crate | Why it's simulated |
+|---|---|
+| `bootstrap` | Stage-0 CPU/MMU/heap bring-up — real hardware bring-up needs ring-0. `cpu::get_info()` does query real host parallelism via `std::thread::available_parallelism`; everything else is a documented, illustrative placeholder. |
+| `core` | Stage-1 primitives are real in-process logic (object manager, IPC mailboxes, capability enforcement, timer wheel, FIFO CPU scheduler) — listed here only because the crate's job is to sit directly on top of `bootstrap`. |
+| `drivers` | An early, self-contained prototype of discovery → driver-matching → sandboxed-load policy, superseded in the actual kernel wiring by `device_manager` + `driver_runtime` (kept for its own test coverage, not double-wired into `kernel`). |
 
-## v1.0.0 Status: Complete
+Every module above states its simulation boundary in its own doc comments (`cargo doc --workspace --no-deps --open` to browse them).
 
-SHER Kernel v1.0.0 includes all 13 phases with 543 comprehensive tests passing:
+## Cross-repo boundary
 
-### Kernel Core (Phases 0-10) - 15,200+ LOC, 388+ tests
-- **Phase 0**: Foundation and architecture
-- **Phase 1**: Memory management with lock-free allocation (50+ tests)
-- **Phase 2**: Hardware discovery and hot-plug (65+ tests)
-- **Phase 3**: Isolated driver runtime (81 tests)
-- **Phase 4**: Linux Kernel Interface - 50+ API translations (72+ tests)
-- **Phase 5**: Capability-based security (24 tests)
-- **Phase 6**: AI services - anomaly detection, predictive allocation, adaptive scheduling (48 tests)
-- **Phase 7**: Crash recovery and watchdog monitoring (11 tests)
-- **Phase 8**: Digital twins - event recording and replay (12 tests)
-- **Phase 9**: Performance profiling and stress testing (13 tests)
-- **Phase 10**: Memory safety audit and syscall hardening (17 tests)
+`SHER-Graphics` and `SHER-Display` depend on this repo via Cargo path dependencies (not published packages). The contracts that matter:
 
-### Hardware Integration (Phase 11) - 2,770 LOC, 80 tests
-- HAL - Hardware Abstraction Layer (9 tests)
-- GPU Driver - DRM/KMS (15 tests)
-- Audio Driver - ALSA (14 tests)
-- Input Driver - evdev protocol (15 tests)
-- Unified Device Manager (12 tests)
-- Wayland Compositor - Display Server (15 tests)
+- **`hal::HardwareDriver`** is a real shared trait `SHER-Graphics` depends on — unchanged.
+- **`wayland_server`** has functions/types marked `#[deprecated]` with notes that compositor/input/surface/output policy now belongs to `SHER-Display`; `wayland_server::WaylandTransport` is the low-level substrate `SHER-Display` actually consumes. Nothing in that boundary was altered.
+- `cargo check --workspace` in `SHER-Graphics` and `SHER-Display` (when present locally) passes against this revision.
 
-### System Integration (Phase 12) - 948 LOC, 35 tests
-- Integration testing framework (21 tests)
-- Performance benchmarking (14 tests)
+## Performance notes
 
-### Production Hardening (Phase 13) - 2,082 LOC, 42 tests
-- Security audit framework (13 tests)
-- Performance optimization (14 tests)
-- Release engineering (15 tests)
-
-**Total Achievement**: 21,000+ lines of production code, 543 comprehensive tests, 100% passing rate.
-
-## Key Features
-
-**Zero-Trust Security** — Capability-based permissions with automatic expiration, no silent renewal  
-**Isolated Drivers** — Every driver runs in sandbox; crash doesn't crash the system  
-**Crash Recovery** — Automatic exponential backoff restart with quarantine for misbehaving drivers  
-**Watchdog Monitoring** — Real-time health checks with graceful degradation  
-**Digital Twins** — Event recording and replay for debugging, analysis, and what-if scenarios  
-**Performance Profiling** — Bottleneck identification, latency percentiles, throughput analysis  
-**Stress Testing** — Memory, concurrency, and cascade failure testing  
-**Memory Safety Audit** — Use-after-free/double-free detection, bounds checking, leak tracking  
-**Syscall Hardening** — Whitelisting, parameter validation, rate limiting, audit trail  
-**Linux Compatible** — 50+ Linux kernel APIs translated, not inherited  
-**AI-Native** — Anomaly detection, predictive allocation, adaptive scheduling built in  
-**High Performance** — Lock-free allocation (<1μs), event-driven architecture  
-**Comprehensive Testing** — 388+ tests, 100% pass rate, all subsystems covered
-
-## Linux Kernel API Compatibility
-
-SHER translates 50+ Linux kernel APIs:
-- **Memory**: kmalloc, kzalloc, vmalloc, dma_alloc_coherent, kfree, vfree
-- **Interrupts**: request_irq, free_irq, enable_irq, disable_irq (with priority and shared support)
-- **Devices**: pci_driver_register, pci_device_register, bus_register, bus_add_device, bus_add_driver
-- **Block/Network**: register_blk_device, register_netdev, etc.
-
-For complete API reference and implementation details, see the project documentation.
-
-## Security Architecture
-
-**Capability-Based Permissions**: Every operation requires explicit grant with automatic expiration (no silent renewal). Four tiers with max durations (1h to 30m).
-
-**Driver Sandboxing**: Each driver runs in isolated container with syscall whitelisting, namespace isolation, memory/network limits, and crash isolation.
-
-**Zero-Trust Model**: Every request validated, no component has unrestricted access, failure defaults to deny, complete audit trail.
-
-## Performance Comparison vs Linux
-
-Actual benchmarks from 346+ tests running SHER kernel subsystems:
-
-### Memory Allocation
-| Operation | SHER | Linux | Overhead | Status |
-|-----------|------|-------|----------|--------|
-| Allocate 4KB | 0.18μs | 0.25μs | -28% | ✓ Better |
-| Deallocate | 0.08μs | 0.08μs | 0% | ✓ Match |
-| With Validation | 0.32μs | N/A | Safety | ✓ Good |
-
-### Device Operations (40% Faster)
-| Operation | SHER | Linux | Overhead | Status |
-|-----------|------|-------|----------|--------|
-| Lookup (HashMap) | 0.08μs | 0.12μs | -33% | ✓ Better |
-| Enumerate 100 | 2.1μs | 3.2μs | -34% | ✓ Better |
-| Driver Matching | 1.8μs | 2.5μs | -28% | ✓ Better |
-
-### Security Checks (88% Faster)
-| Operation | SHER | Linux ACL | Overhead | Status |
-|-----------|------|-----------|----------|--------|
-| Capability Check | 0.06μs | 0.50μs | -88% | ✓ Much Better |
-| Multiple Checks | 0.18μs | 1.2μs | -85% | ✓ Much Better |
-| Audit Log | 0.15μs | 0.30μs | -50% | ✓ Better |
-
-### Overall Performance
-| Category | SHER vs Linux | Assessment |
-|----------|---------------|-----------|
-| Device Operations | **-40%** | Excellent |
-| Security Checks | **-88%** | Excellent |
-| Memory (with safety) | **< 50%** | Excellent |
-| Driver Isolation | **< 50%** | Acceptable |
-| **Average Overhead** | **< 25%** | Excellent |
-
-**Key Finding**: SHER is faster or comparable on core operations while adding mandatory security, driver isolation, and crash recovery—features absent in Linux.
-
-See [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) for complete methodology and detailed analysis.
-
-## Prerequisites & Installation
-
-**Requirements:**
-- Rust 1.70+ (install via [rustup.rs](https://rustup.rs))
-- Unix/Linux development environment (macOS, Linux, WSL2)
-- 2GB disk space for source + build
-
-**Installation Methods:**
-1. **Build from source** (recommended for development)
-2. **Docker deployment** (for containers)
-3. **Kubernetes** (for orchestrated environments)
-4. **Bare metal** (systemd service)
-
-See [INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md) for complete deployment instructions.
-
-## Build & Test
-
-```bash
-# Clone and enter directory
-git clone https://github.com/Mullassery/SHER-KERNEL.git
-cd SHER-KERNEL
-
-# Run all tests (543 tests)
-cargo test --lib                          # Run all tests
-cargo test --lib --package security_audit # Security tests (13)
-cargo test --lib --package performance_benchmarks # Performance (14)
-cargo test --lib --package system_integration # Integration (21)
-
-# Build the kernel
-cargo build              # Debug build
-cargo build --release    # Optimized release binary
-
-# Install locally
-cargo install --path .   # Install to ~/.cargo/bin
-
-# Check code quality
-cargo check              # Fast compile check
-```
-
-**Expected output**: 543 tests passing in ~5 seconds, zero warnings.
-
-## Documentation
-
-- **[INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)** — Deploy SHER Kernel (Docker, Kubernetes, bare metal)
-- **[API_REFERENCE.md](API_REFERENCE.md)** — Complete API for all 13 crates with code examples
-- **[RELEASE_NOTES_1_0_0.md](RELEASE_NOTES_1_0_0.md)** — Features, metrics, and release information
-- **[FINAL_COMPLETION_STATUS.md](FINAL_COMPLETION_STATUS.md)** — Complete project status and achievements
-- **[BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md)** — Performance comparison vs Linux
-- **[PERFORMANCE_METRICS.md](PERFORMANCE_METRICS.md)** — Detailed benchmark methodology
-- **[PHASE_11_ARCHITECTURE.md](PHASE_11_ARCHITECTURE.md)** — Hardware integration design
-- **Code Structure** — Each crate is self-contained; start with `crates/common/` (foundation)
-- **Test Cases** — 543 tests serve as executable documentation and usage examples
-
-## Test Coverage
-
-### Kernel Core (388+ tests)
-- **Memory Management**: 50+ tests
-- **Device Discovery**: 65+ tests
-- **Driver Runtime**: 81 tests
-- **LKI Translation**: 72+ tests
-- **Security**: 24 tests
-- **AI Services**: 48 tests
-- **Crash Recovery**: 11 tests
-- **Digital Twins**: 12 tests
-- **Profiling & Stress Testing**: 13 tests
-- **Hardening & Security Audit**: 17 tests
-
-### Hardware Integration (80 tests)
-- **HAL**: 9 tests
-- **GPU Driver**: 15 tests
-- **Audio Driver**: 14 tests
-- **Input Driver**: 15 tests
-- **Device Manager**: 12 tests
-- **Wayland Compositor**: 15 tests
-
-### System Integration (35 tests)
-- **Integration Framework**: 21 tests
-- **Performance Benchmarks**: 14 tests
-
-### Production Hardening (42 tests)
-- **Security Audit**: 13 tests
-- **Performance Optimization**: 14 tests
-- **Release Engineering**: 15 tests
-
-**Total**: 543 tests, 100% pass rate, zero warnings
+Earlier revisions of this repo's docs (`BENCHMARK_RESULTS.md`, `PERFORMANCE_METRICS.md`) presented tables like "SHER vs Linux ACL: -88% overhead" as if they were a validated systems-level comparison. They were not: those numbers came from microbenchmarking individual in-process Rust operations (e.g. a `HashMap` lookup) against *assumed* Linux syscall costs, not from running an actual Linux kernel side-by-side. Treat any "SHER vs Linux" percentage in this repo's older docs as illustrative of relative micro-op cost, not a kernel performance claim. `crates/benchmarks` and `crates/performance_benchmarks` contain real Criterion/harness benchmarks of this repo's own code, which is what they can honestly measure.
 
 ## Project Organization
 
 ```
 crates/
-├── common/         # Shared types and utilities
-├── objectmodel/    # Foundation object model
-├── memory/         # Lock-free memory allocator
-├── device_manager/ # PCI/USB discovery and hot-plug
-├── driver_runtime/ # Isolated driver containers
-├── lki/            # Linux Kernel Interface translation
-├── security/       # Capability-based permissions
-├── interrupt/      # Interrupt controller
-├── scheduler/      # Scheduling and workload classification
-├── ai/             # Anomaly detection, predictive allocation, reinforcement learning
-└── kernel/         # Main kernel coordination
+├── common/, objectmodel/, security/     # Foundation types, object model, capabilities
+├── bootstrap/, core/, runtime/          # Staged boot simulation (Stage 0/1/2)
+├── memory/, compute/, scheduler/        # Memory tiers, accelerator queues, priority scheduler
+├── device_manager/, driver_runtime/,
+│   drivers/, hal/                       # Device registry, driver lifecycle, HAL
+├── interrupt/, networking/, storage/    # Simulated I/O-adjacent subsystems
+├── security_audit/, hardening/          # Memory-safety & syscall hardening
+├── recovery/, snapshot/, updater/       # A/B images, rollback, transactional updates
+├── diagnostics/, profiling/,
+│   performance_optimization/            # Telemetry, profiling, object pooling
+├── ai/                                  # Anomaly detection, predictive allocation, RL
+├── lki/, compatibility/                 # Linux/POSIX API-name translation tables
+├── gpu_driver/, audio_driver/,
+│   input_driver/, wayland_server/,
+│   unified_device_manager/              # Driver-shaped subsystems (SHER-Display boundary)
+├── digital_twins/, system_integration/,
+│   benchmarks/, performance_benchmarks/,
+│   release_engineering/                 # Testing/release tooling
+└── kernel/                              # In-process orchestrator (SherKernel)
 ```
-
-## Performance Targets
-
-- Interrupt latency: < 100 microseconds
-- Memory overhead: < 50MB kernel + drivers
-- Driver isolation: < 25% performance overhead
-- Lock-free allocation: < 1 microsecond
-- AI inference: < 1 millisecond decision latency
 
 ## Design Principles
 
-**AI-Native**: Intelligence (inference, anomaly detection, learning) is embedded in the kernel, not bolted on top.
+- **Capability-based, time-bounded permissions**: every grant carries an expiry; nothing is permanent by default.
+- **Driver isolation**: driver lifecycle goes through a sandbox/container abstraction rather than running inline.
+- **Immutable A/B updates**: the updater only ever writes to the standby partition; the active boot pointer is a single, reversible pointer flip.
+- **Honesty about simulation boundaries**: every module that can't do the real thing (hardware I/O, ring-0) says so in its own doc comment instead of pretending.
 
-**Compatibility Without Dependency**: Runs Linux drivers via translation layer, not by inheriting Linux internals.
+## Build & Test
 
-**Modular**: Every subsystem is independently replaceable with clear interfaces and zero tight coupling.
+```bash
+cargo test --workspace                      # 764 tests
+cargo clippy --workspace -- -D warnings     # lint, clean
+cargo fmt --check                           # formatting, clean
+cargo build --workspace                     # build everything
+cargo doc --workspace --no-deps --open      # browse per-crate simulation-boundary docs
+```
 
-**Secure by Design**: Capability-based permissions, zero-trust validation, and mandatory driver isolation from day one.
+## Documentation
 
-## Roadmap
-
-**v1.0.0 Released** ✅ (August 7, 2026)
-- Phases 0-10: Production-ready kernel (15,200+ LOC, 388+ tests)
-- Phase 11: Hardware integration stack (2,770 LOC, 80 tests)
-- Phase 12: System integration framework (948 LOC, 35 tests)
-- Phase 13: Production hardening (2,082 LOC, 42 tests)
-- Complete documentation and deployment guides
-- **Total: 21,000+ LOC, 543 tests, 100% passing**
-
-**v1.1.0** (Planned)
-- Enhanced GPU compute support
-- Audio plugin ecosystem
-- Extended input gesture recognition
-
-**v2.0.0** (Vision)
-- Heterogeneous compute (GPU/NPU/FPGA)
-- Distributed system support
-- Robotics integration
-
-## Contributing
-
-SHER Kernel is a research-grade project demonstrating what a ground-up kernel redesign looks like when built for modern computing paradigms.
-
-Development follows principles:
-- Write no unsafe code without explicit review
-- Every commit should maintain 100% test passing rate
-- Document the WHY, not just the WHAT
-- Keep functions small and focused (< 50 lines ideal)
-- Prefer composition over inheritance
-
-For contributions, please ensure:
-- All tests pass: `cargo test --lib`
-- Code compiles without warnings: `cargo check`
-- Maintain modular architecture with clear subsystem boundaries
+- **[CLAUDE.md](CLAUDE.md)** — architecture and implementation guide for this repo
+- **[API_REFERENCE.md](API_REFERENCE.md)** — per-crate API reference (see individual crate doc comments for the authoritative simulation-boundary notes)
+- Older docs (`FINAL_COMPLETION_STATUS.md`, `PROJECT_COMPLETION_SUMMARY.md`, `RELEASE_NOTES_1_0_0.md`, `BENCHMARK_RESULTS.md`, `PERFORMANCE_METRICS.md`, phase-plan files, etc.) describe an earlier, more marketing-driven characterization of this project ("v1.0.0 Production Ready"). They are kept for history but carry a correction notice at the top pointing back here; this README is the current source of truth.
 
 ## License
 
-Proprietary License — Free to use with explicit attribution to Georgi Mammen Mullassery.
-
-The SHER Kernel project represents a complete architectural reimagining of operating system design. Attribution to the original work is required for any use, modification, or derivative projects.
+Proprietary License — free to use with explicit attribution to Georgi Mammen Mullassery. See [LICENSE](LICENSE).
 
 ## Contact & Attribution
 
 **Project Author**: Georgi Mammen Mullassery
 **Email**: mullassery@gmail.com
 **GitHub**: [@Mullassery](https://github.com/Mullassery)
-
-SHER Kernel demonstrates research-grade kernel engineering combining modern Rust systems programming with classical operating systems theory for the AI era.
-
----
-
-**SHER Kernel**: Where AI meets systems architecture. Not evolution. Revolution.

@@ -1,5 +1,8 @@
 # SHER Kernel vs Linux Kernel: Performance Comparison Report
 
+> **Status correction (see [README.md](README.md)):** This document was written when the project marketed itself as "v1.0.0 Production Ready" / "COMPLETE." That characterization was inaccurate: this is a userspace Rust workspace (no bootloader, no ring-0 code, not a bootable kernel), and the specific test/LOC/phase counts and performance-vs-Linux figures below predate an honesty pass and should not be trusted. See README.md and CLAUDE.md for the current, accurate status. This file is kept for historical reference only.
+
+
 **Test Date**: August 7, 2026  
 **Platform**: macOS 14.6 (ARM64) - SHER kernel tests executed  
 **Test Suite**: SHER Kernel comprehensive test suite (292+ tests)

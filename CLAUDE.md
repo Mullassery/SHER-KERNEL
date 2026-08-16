@@ -2,11 +2,13 @@
 
 ## Project Context
 
-**Project Name**: SHER Kernel (Strength, Resilience, Intelligence, Adaptability)  
-**Type**: Operating System Kernel  
-**Language**: Rust  
-**Status**: Phase 0 Foundation — Architecture Complete, Implementation Started  
-**Author**: Georgi Mammen Mullassery  
+**Project Name**: SHER Kernel (Strength, Resilience, Intelligence, Adaptability)
+**Type**: Userspace prototype of OS-kernel object-model/scheduling/memory/driver-lifecycle concepts — **not a bootable kernel**
+**Language**: Rust (`std` + `tokio`; no `no_std`, no bootloader, no ring-0 code anywhere in this workspace)
+**Status**: 40 crates, 764 tests passing, `clippy -D warnings` and `fmt --check` clean. See [README.md](README.md) for the authoritative real-vs-simulated breakdown per crate.
+**Author**: Georgi Mammen Mullassery
+
+Earlier revisions of this file said "Phase 0 Foundation — Architecture Complete, Implementation Started" while other docs in this repo simultaneously claimed "v1.0.0 Production Ready" and "13/13 phases complete" — those two characterizations directly contradicted each other, and neither was accurate. This file has been corrected to describe what the code actually does. It runs as an ordinary process on your existing OS; it does not boot on bare metal.
 
 ## Design Philosophy
 
@@ -17,40 +19,50 @@ SHER Kernel is engineered for the AI era with four guiding principles:
 3. **Modular by Design**: Every subsystem is independently replaceable and testable
 4. **Security by Architecture**: Capability-based permissions, zero-trust model, no component has unrestricted access
 
+These are the *design goals being prototyped*, not claims about a finished, bootable OS.
+
 ## Architectural Constraints & Boundaries
 
 ### What SHER IS:
-- A new kernel architecture with no inheritance from Linux
-- An AI-native system where inference, scheduling, and monitoring are integrated
+- A userspace Rust workspace prototyping a capability-based, driver-isolated kernel object model
+- An AI-native *simulation*: inference/anomaly-detection/adaptive-scheduling logic is real and tested, but it runs on synthetic or caller-supplied metrics, not live kernel telemetry (there is no live kernel to instrument)
 - A modular design where subsystems operate via well-defined interfaces
 - A capability-based security model where permissions are explicit and time-bounded
-- Compatible with Linux drivers through translation, not through emulation
+- Compatible with Linux/POSIX API *names* through lookup-table translation (`lki`, `compatibility`), not through emulation or a real syscall ABI
 
 ### What SHER IS NOT:
+- A bootable kernel — there is no bootloader, no ring-0/bare-metal code, no real MMU or interrupt-controller programming
 - A Linux distribution or fork
-- A Linux fork with modern tooling
-- A microkernel (though components are isolated)
-- A monolithic kernel (though components are stateful)
-- An attempt to "improve" Linux incrementally
+- A microkernel or monolithic kernel in the conventional, bootable sense (though the object model borrows vocabulary from both)
+- A validated performance comparison against Linux (see README.md's "Performance notes" section)
+- Published anywhere (no crates.io/PyPI) — consumed only via Cargo path dependencies by sibling repos (`SHER-Graphics`, `SHER-Display`)
 
 ## Crate Structure
+
+40 crates total. This list was previously stale (named only 13); see [README.md](README.md#project-organization) for the current, complete breakdown with a real-vs-simulated classification per crate. Summary:
 
 ```
 sher-kernel/
 ├── crates/
-│   ├── common/              # Shared types, errors, utilities
-│   ├── objectmodel/         # Core kernel object model
-│   ├── security/            # Capability-based security
-│   ├── memory/              # Memory allocation and management
-│   ├── scheduler/           # Heterogeneous compute scheduling
-│   ├── interrupt/           # Interrupt management
-│   ├── networking/          # Network device support
-│   ├── storage/             # Storage device support
-│   ├── device_manager/      # Unified device management
-│   ├── driver_runtime/      # Isolated driver execution
-│   ├── lki/                 # Linux Kernel Interface (compatibility)
-│   ├── ai/                  # AI-native services
-│   └── kernel/              # Main kernel entry point
+│   ├── common/, objectmodel/, security/      # Foundation types, object model, capabilities
+│   ├── bootstrap/, core/, runtime/           # Staged boot simulation (Stage 0/1/2)
+│   ├── memory/, compute/, scheduler/         # Memory tiers, accelerator queues, priority scheduler
+│   ├── device_manager/, driver_runtime/,
+│   │   drivers/, hal/                        # Device registry, driver lifecycle, HAL
+│   ├── interrupt/, networking/, storage/     # Simulated I/O-adjacent subsystems
+│   ├── security_audit/, hardening/           # Memory-safety & syscall hardening
+│   ├── recovery/, snapshot/, updater/        # A/B images, rollback, transactional updates
+│   ├── diagnostics/, profiling/,
+│   │   performance_optimization/             # Telemetry, profiling, object pooling
+│   ├── ai/                                   # Anomaly detection, predictive allocation, RL
+│   ├── lki/, compatibility/                  # Linux/POSIX API-name translation tables
+│   ├── gpu_driver/, audio_driver/,
+│   │   input_driver/, wayland_server/,
+│   │   unified_device_manager/               # Driver-shaped subsystems (SHER-Display boundary)
+│   ├── digital_twins/, system_integration/,
+│   │   benchmarks/, performance_benchmarks/,
+│   │   release_engineering/                  # Testing/release tooling
+│   └── kernel/                                # In-process orchestrator (SherKernel)
 ```
 
 ## Core Concepts
@@ -106,71 +118,20 @@ pub enum State {
 }
 ```
 
-## Implementation Roadmap
+## Implementation Status
 
-### Phase 0: Foundation (CURRENT)
-- [x] Core type system and object model
-- [x] Error handling framework
-- [x] Cargo workspace setup with 13 crates
-- [x] Basic subsystem skeleton
-- [x] Project compiles cleanly
-- [ ] Unit tests for core types
-- [ ] Project README and documentation
+The numbered "Week N" phase roadmap that used to live here was aspirational scaffolding that never got updated as work landed, which is part of how this repo ended up with contradictory status claims across different files. What actually exists today, grouped by the same themes:
 
-### Phase 1: Memory Management (Week 2-3)
-- [ ] Memory allocator (SHER-native)
-- [ ] Linux API translation (kmalloc, kzalloc, vmalloc, kfree)
-- [ ] DMA buffer management
-- [ ] Page table implementation
-- [ ] Memory pressure handling
-- [ ] Tests: 50+ unit tests
+- **Foundation** — done: core type system, object model, error handling, 40-crate workspace, compiles cleanly, tests present (`common`, `objectmodel`, `security`).
+- **Memory management** — done as userspace bookkeeping: tiered slab allocators, DMA buffer tracking, page-table map/unmap (`memory`). No real Linux API translation exists for `kmalloc`/`vmalloc`/etc. beyond name→subsystem lookup tables in `lki`/`compatibility`.
+- **Device manager** — done as simulation: device registry, state machine, hot-plug event queue, discovery over a caller-populated device list (`device_manager`, `drivers`). No real PCI/USB bus enumeration (would need kernel/root access).
+- **Driver runtime** — done: container lifecycle, sandbox policy, crash-recovery backoff/quarantine (`driver_runtime`, `recovery`). "Loading" a driver means constructing its in-process representation, not loading a kernel module.
+- **Linux Kernel Interface** — done as translation tables + validation, not a real syscall ABI (`lki`).
+- **Security & capabilities** — done: time-bounded capability grants, sandbox policy, audit logging (`security`, `security_audit`, `objectmodel::capabilities`).
+- **AI services** — done as real logic over synthetic/caller-supplied metrics: anomaly detection, predictive allocation, adaptive scheduling, reinforcement learning (`ai`). Not connected to any live kernel telemetry, because there is no live kernel to instrument.
+- **Hardening** — done: memory-safety checks, syscall-parameter/return-value validation, object pooling, profiling (`hardening`, `security_audit`, `performance_optimization`, `profiling`).
 
-### Phase 2: Device Manager (Week 3-4)
-- [ ] Hardware discovery engine
-- [ ] PCI/USB enumeration
-- [ ] Device registry
-- [ ] Driver matching algorithm
-- [ ] Firmware management
-- [ ] Tests: 40+ unit tests
-
-### Phase 3: Driver Runtime (Week 4-5)
-- [ ] Driver container isolation
-- [ ] Linux driver loading
-- [ ] Driver sandboxing with resource limits
-- [ ] Live driver restart
-- [ ] Driver telemetry collection
-- [ ] Tests: 60+ unit tests
-
-### Phase 4: Linux Kernel Interface (Week 5-7)
-- [ ] kmalloc/kfree translation
-- [ ] Interrupt registration API
-- [ ] Device model emulation
-- [ ] Storage driver support
-- [ ] Networking driver support
-- [ ] Tests: 100+ unit tests
-
-### Phase 5: Security & Capabilities (Week 7-8)
-- [ ] Capability grant system with expiration
-- [ ] Sandbox enforcement
-- [ ] Audit logging
-- [ ] Permission escalation prevention
-- [ ] Time-based re-authentication
-- [ ] Tests: 50+ unit tests
-
-### Phase 6: AI Services (Week 8-10)
-- [ ] Inference engine framework
-- [ ] Anomaly detection (memory leaks, interrupt storms, DMA abuse)
-- [ ] Predictive resource allocation
-- [ ] Adaptive performance tuning
-- [ ] Tests: 40+ unit tests
-
-### Phase 7: Production Hardening (Week 10-12)
-- [ ] Performance optimization
-- [ ] Crash recovery
-- [ ] Boot optimization
-- [ ] Security audit
-- [ ] Documentation
-- [ ] Tests: 100+ integration tests
+Run `cargo test --workspace` for the current, authoritative count (764 as of this revision) rather than trusting any number written in prose here or elsewhere — prose test counts are exactly what went stale before.
 
 ## Implementation Patterns
 
@@ -360,4 +321,4 @@ RUST_LOG=sher_kernel=info,sher_lki=debug cargo run
 
 ---
 
-**Next Steps**: Begin Phase 1 implementation with memory allocator and tests.
+**Current state**: 40 crates implemented with real, tested logic behind their public APIs, or explicitly labeled as a hardware/privilege simulation where they can't be. **Next steps, if this project continues**: none of them lead to a bootable kernel without a multi-year bare-metal/bootloader effort out of scope for this repo; within the userspace-prototype scope, likely next work is deepening the `ai` crate's connection to real telemetry sources and expanding `lki`'s translation coverage.

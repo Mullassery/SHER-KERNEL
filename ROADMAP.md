@@ -1,5 +1,8 @@
 # SHER Kernel: Detailed Development Roadmap
 
+> **Status correction (see [README.md](README.md)):** This document was written when the project marketed itself as "v1.0.0 Production Ready" / "COMPLETE." That characterization was inaccurate: this is a userspace Rust workspace (no bootloader, no ring-0 code, not a bootable kernel), and the specific test/LOC/phase counts and performance-vs-Linux figures below predate an honesty pass and should not be trusted. See README.md and CLAUDE.md for the current, accurate status. This file is kept for historical reference only.
+
+
 **Start Date**: August 6, 2026  
 **Target Release**: December 2026 (16 weeks)  
 **Status**: Phase 0 Complete, Phase 1 Starting
