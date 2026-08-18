@@ -1,40 +1,38 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sher_memory::allocator::MemoryAllocator;
-use std::time::Instant;
 
 fn benchmark_small_allocation(c: &mut Criterion) {
-    let mut allocator = MemoryAllocator::new();
-    allocator.initialize(1024 * 1024).unwrap();
+    let mut allocator = MemoryAllocator::new(1024 * 1024);
 
     c.bench_function("allocate_256_bytes", |b| {
         b.iter(|| {
             let _ = allocator.allocate(black_box(256)).unwrap();
+            allocator.deallocate(256).unwrap();
         })
     });
 }
 
 fn benchmark_large_allocation(c: &mut Criterion) {
-    let mut allocator = MemoryAllocator::new();
-    allocator.initialize(10 * 1024 * 1024).unwrap();
+    let mut allocator = MemoryAllocator::new(10 * 1024 * 1024);
 
     c.bench_function("allocate_4096_bytes", |b| {
         b.iter(|| {
             let _ = allocator.allocate(black_box(4096)).unwrap();
+            allocator.deallocate(4096).unwrap();
         })
     });
 }
 
 fn benchmark_allocation_sequence(c: &mut Criterion) {
-    let mut allocator = MemoryAllocator::new();
-    allocator.initialize(10 * 1024 * 1024).unwrap();
+    let mut allocator = MemoryAllocator::new(10 * 1024 * 1024);
 
     c.bench_function("allocate_deallocate_sequence", |b| {
         b.iter(|| {
-            let ptrs: Vec<_> = (0..100)
-                .map(|_| allocator.allocate(black_box(256)).unwrap())
-                .collect();
-            for ptr in ptrs {
-                let _ = allocator.deallocate(ptr);
+            for _ in 0..100 {
+                allocator.allocate(black_box(256)).unwrap();
+            }
+            for _ in 0..100 {
+                allocator.deallocate(256).unwrap();
             }
         })
     });
@@ -42,25 +40,27 @@ fn benchmark_allocation_sequence(c: &mut Criterion) {
 
 fn linux_baseline_comparison(c: &mut Criterion) {
     let mut group = c.benchmark_group("linux_comparison");
-    let mut allocator = MemoryAllocator::new();
-    allocator.initialize(10 * 1024 * 1024).unwrap();
+    let mut allocator = MemoryAllocator::new(10 * 1024 * 1024);
 
     group.bench_function("sher_256b_allocation", |b| {
         b.iter(|| {
             let _ = allocator.allocate(black_box(256));
+            allocator.deallocate(256).unwrap();
         })
     });
 
     group.bench_function("sher_4k_allocation", |b| {
         b.iter(|| {
             let _ = allocator.allocate(black_box(4096));
+            allocator.deallocate(4096).unwrap();
         })
     });
 
-    group.bench_function("sher_with_validation", |b| {
+    group.bench_function("sher_usage_percent", |b| {
         b.iter(|| {
-            let ptr = allocator.allocate(black_box(256)).unwrap();
-            let _ = allocator.validate_allocation(ptr);
+            allocator.allocate(black_box(256)).unwrap();
+            let _ = black_box(allocator.usage_percent());
+            allocator.deallocate(256).unwrap();
         })
     });
 

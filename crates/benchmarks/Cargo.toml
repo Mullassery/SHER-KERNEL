@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+sher_common = { path = "../common" }
 sher_memory = { path = "../memory" }
 sher_device_manager = { path = "../device_manager" }
 sher_driver_runtime = { path = "../driver_runtime" }

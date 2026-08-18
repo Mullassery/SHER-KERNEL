@@ -24,9 +24,12 @@ If you came here expecting a kernel you can boot on bare metal, this is not that
 
 - **764 unit/integration tests, 100% passing** (`cargo test --workspace`)
 - **`cargo clippy --workspace -- -D warnings`**: clean
+- **`cargo clippy --workspace --all-targets -- -D warnings`**: not clean — this repo had no CI at all until this pass, so nothing had ever checked lints inside `#[cfg(test)]` modules and `benches/`. Real, pre-existing warnings (mostly `clippy::clone_on_copy` on the `Copy`-deriving `ObjectId`, plus a handful of `identity_op`/`unnecessary_cast`/`module_inception`/etc.) exist in `crates/ai`, `crates/lki`, `crates/kernel`, `crates/security_audit`, `crates/system_integration`, and `crates/performance_benchmarks`'s test code. None of them are in the library/binary code the narrower, currently-enforced command above covers. Tracked as real follow-up work, not fixed in this pass.
 - **`cargo fmt --check`**: clean
+- **`cargo build --workspace --all-targets`** (including `benches/`): clean as of this pass — 5 benchmark files (`crates/memory/benches/allocator_bench.rs`, `crates/benchmarks/benches/{memory_allocation,lki_translation,device_enumeration,security_checks}.rs`) didn't compile at all before this pass (missing `criterion` dev-dependency, and calls into `sher_lki`/`sher_device_manager`/`sher_security`/`MemoryAllocator` APIs that had since been redesigned). Rewrote each against the current real APIs and verified every benchmark function actually executes (`cargo bench --workspace -- --test`).
 - 40 crates surveyed; the ones that were near-empty stubs (`pub fn x() {}`) have been implemented with real, tested logic — see the breakdown below.
 - Not published anywhere (no crates.io/PyPI); consumed by sibling repos (`SHER-Graphics`, `SHER-Display`) via Cargo path dependencies.
+- **CI**: this repo had no `.github/workflows/` at all before this pass — every claim above had to be re-verified by hand rather than continuously checked. Added a standard `cargo fmt`/`build --all-targets`/`test`/`clippy` workflow, matching the pattern already used by the sibling `SHER-Graphics`/`SHER-Input` repos.
 
 ## Quick Start
 
