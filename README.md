@@ -105,6 +105,53 @@ Every module above states its simulation boundary in its own doc comments (`carg
 - **`wayland_server`** has functions/types marked `#[deprecated]` with notes that compositor/input/surface/output policy now belongs to `SHER-Display`; `wayland_server::WaylandTransport` is the low-level substrate `SHER-Display` actually consumes. Nothing in that boundary was altered.
 - `cargo check --workspace` in `SHER-Graphics` and `SHER-Display` (when present locally) passes against this revision.
 
+### Cross-repo compatibility (verified, whole family)
+
+This repo is the foundation of a family of five sibling repos under the
+Mullassery org, all expected to be cloned as sibling directories:
+`SHER-Kernel`, `SHER-Graphics`, `SHER-Display`, `SHER-Input`, and `Aurora`
+(GitHub: `SHER-Aurora`). Actual Cargo-level coupling, confirmed by reading
+every `Cargo.toml` in the family (not assumed from naming):
+
+- **SHER-Kernel** (this repo) — foundation, no dependency on any sibling.
+- **SHER-Graphics** — depends on this repo (`sher_common`, `sher_objectmodel`,
+  `sher_security`, `hal`, `gpu_driver`) via relative path.
+- **SHER-Input** — standalone, no dependency on any sibling.
+- **SHER-Display** — depends on all three: this repo (`sher_common`,
+  `sher_objectmodel`, `gpu_driver`, `wayland_server`), SHER-Graphics
+  (`graphics_api`, `gpu_abstraction`, `graphics_runtime`, `graphics_compat`),
+  and SHER-Input (`sher_input_core`, `sher_input_test`) — all via relative
+  path, so all four repos must be sibling directories for its build to
+  resolve.
+- **Aurora** — zero Cargo-level coupling to any of the above four. It's a
+  standalone GTK/Qt/Web design-system toolkit; the shared "SHER" naming
+  (`SHER-Aurora` on GitHub) is organizational only, not a build dependency.
+
+All four coupled repos use Rust edition 2021 (semver differs by design —
+Kernel/Graphics/Input are at 0.2.0, Display at 0.1.0, being the newest).
+Verified empirically: a from-scratch `cargo build --workspace` in
+SHER-Graphics against this repo's current state compiles clean; a
+from-scratch `cargo build --workspace` in SHER-Display against this repo +
+SHER-Graphics + SHER-Input compiles clean across all 14 SHER-Display
+crates; `cargo test --workspace` in SHER-Display passes 56/56, genuinely
+exercising the cross-repo boundary (SHER-Input's simulated backend, this
+repo's `gpu_driver` value types, SHER-Graphics's `graphics_api`/
+`graphics_runtime`). Only SHER-Graphics depends directly on a low-level
+external graphics crate (`ash` 0.38); it isn't leaked across the repo
+boundary, so there's no divergent-version risk for shared external types.
+
+Boundary discipline (never instantiate a driver another subsystem already
+owns) holds across the live chain: SHER-Display's `outputs` crate does not
+instantiate `gpu_driver::GPUDriver`, only consuming its value types; its
+`input` crate consumes the real `sher_input_core::InputService` rather than
+reimplementing it. One disclosed exception exists *within this repo*: the
+`system_integration` crate (a deprecated, internal-only Phase-12
+integration-test harness — see its own doc comment) instantiates its own
+`GPUDriver`/`WaylandCompositor`/etc. for isolated end-to-end testing. It
+explicitly states it is not part of the real cross-repo boundary and warns
+against copying the pattern elsewhere — a known, self-documented exception,
+not a live violation.
+
 ## Performance notes
 
 Earlier revisions of this repo's docs (`BENCHMARK_RESULTS.md`, `PERFORMANCE_METRICS.md`) presented tables like "SHER vs Linux ACL: -88% overhead" as if they were a validated systems-level comparison. They were not: those numbers came from microbenchmarking individual in-process Rust operations (e.g. a `HashMap` lookup) against *assumed* Linux syscall costs, not from running an actual Linux kernel side-by-side. Treat any "SHER vs Linux" percentage in this repo's older docs as illustrative of relative micro-op cost, not a kernel performance claim. `crates/benchmarks` and `crates/performance_benchmarks` contain real Criterion/harness benchmarks of this repo's own code, which is what they can honestly measure.
