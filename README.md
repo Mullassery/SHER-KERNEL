@@ -97,6 +97,12 @@ These are kept as clearly-labeled simulations rather than pretending to do real 
 
 Every module above states its simulation boundary in its own doc comments (`cargo doc --workspace --no-deps --open` to browse them).
 
+## Known gaps (external critique, verified)
+
+- **No real cross-process IPC exists yet.** `crates/core/src/ipc.rs` (`IpcBus`) is explicitly documented as in-process only — a `HashMap<String, VecDeque<Message>>` mailbox that copies `Vec<u8>` payloads on every send/receive. There is no lock-free/zero-copy ring buffer, and no actual transport for framebuffers/input events to `SHER-Display` — that cross-repo data path isn't implemented here at all yet, only the in-process primitive it would eventually build on.
+- **No fuzzing.** No `fuzz/` directory, no cargo-fuzz/libfuzzer/afl anywhere in the repo, and CI (`.github/workflows/ci.yml`) only runs fmt/build/test/clippy. Syscall-parameter validation in `hardening`/`lki` is unit-tested but never fuzzed against malformed/adversarial input.
+- **"Isolated driver runtime" is object-model isolation, not OS-level sandboxing** — worth being explicit about this distinction if it ever comes up externally. Crash-restart is real (`crates/recovery/src/crash_recovery.rs`: exponential backoff, quarantine after repeated crashes; `driver_runtime/src/container.rs` tracks `crash_count` and allows `Stopped → Starting`), and `driver_runtime/src/sandbox.rs` enforces real in-process capability/syscall/file-access policy checks. But there's no `unsafe`, no `process::Command`/fork, no seccomp/cgroup/namespace usage anywhere in `driver_runtime` — drivers run in-process with the kernel object model, not as separate unprivileged OS processes. That's consistent with this repo's stated userspace-prototype scope (see CLAUDE.md), not a bug to fix, but the gap between "policy-level isolation" and "real process isolation" matters if this is ever pitched as literal driver crash containment.
+
 ## Cross-repo boundary
 
 `SHER-Graphics` and `SHER-Display` depend on this repo via Cargo path dependencies (not published packages). The contracts that matter:
