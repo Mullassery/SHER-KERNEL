@@ -22,7 +22,7 @@ If you came here expecting a kernel you can boot on bare metal, this is not that
 
 ## Status
 
-- **764 unit/integration tests, 100% passing** (`cargo test --workspace`)
+- **767 unit/integration tests, 100% passing** (`cargo test --workspace`)
 - **`cargo clippy --workspace -- -D warnings`**: clean
 - **`cargo clippy --workspace --all-targets -- -D warnings`**: not clean — this repo had no CI at all until this pass, so nothing had ever checked lints inside `#[cfg(test)]` modules and `benches/`. Real, pre-existing warnings (mostly `clippy::clone_on_copy` on the `Copy`-deriving `ObjectId`, plus a handful of `identity_op`/`unnecessary_cast`/`module_inception`/`len_zero`/etc.) exist in the `#[cfg(test)]` code of `crates/ai`, `crates/device_manager`, `crates/driver_runtime`, `crates/kernel`, `crates/lki`, `crates/performance_benchmarks`, `crates/security_audit`, `crates/system_integration`, and `crates/wayland_server`, plus one `clippy::unit_arg` warning in `crates/memory`'s `benches/allocator_bench.rs`. None of them are in the library/binary code the narrower, currently-enforced command above covers. Tracked as real follow-up work, not fixed in this pass.
 - **`cargo fmt --check`**: clean
@@ -99,7 +99,7 @@ Every module above states its simulation boundary in its own doc comments (`carg
 
 ## Known gaps (external critique, verified)
 
-- **No real cross-process IPC exists yet.** `crates/core/src/ipc.rs` (`IpcBus`) is explicitly documented as in-process only — a `HashMap<String, VecDeque<Message>>` mailbox that copies `Vec<u8>` payloads on every send/receive. There is no lock-free/zero-copy ring buffer, and no actual transport for framebuffers/input events to `SHER-Display` — that cross-repo data path isn't implemented here at all yet, only the in-process primitive it would eventually build on.
+- **The in-process IPC primitive is now a real lock-free, zero-copy ring buffer — fixed.** `crates/core/src/ipc.rs` (`IpcBus`) used to be a `HashMap<String, VecDeque<Message>>` mailbox behind `&mut self` (needs an external mutex to share across threads) that copied every payload into an owned `Vec<u8>`. Each mailbox is now a bounded [`crossbeam_queue::ArrayQueue`](https://docs.rs/crossbeam-queue) (a well-established lock-free bounded queue), and `Message::payload` is `Arc<[u8]>` — `send`/`receive` take `&self` and are safe to call concurrently from multiple threads with no mutex, and passing a framebuffer/input-event buffer is an O(1) refcount clone, not a byte copy. Verified with a real multi-threaded test (8 producer threads, no external locking, `IpcBus` shared via `Arc`) and a pointer-identity test proving payloads aren't copied. **Still not real cross-process IPC**: there is still no actual transport for framebuffers/input events to `SHER-Display` — that cross-repo data path isn't implemented here, only the in-process primitive it would build on. This repo is a single-process userspace prototype (see CLAUDE.md); real cross-process transport (shared memory segments, a socket protocol, etc.) is a materially different, OS-process-boundary-crossing feature that would need to be designed jointly with `SHER-Display`, not something this crate can honestly claim on its own.
 - **No fuzzing.** No `fuzz/` directory, no cargo-fuzz/libfuzzer/afl anywhere in the repo, and CI (`.github/workflows/ci.yml`) only runs fmt/build/test/clippy. Syscall-parameter validation in `hardening`/`lki` is unit-tested but never fuzzed against malformed/adversarial input.
 - **"Isolated driver runtime" is object-model isolation, not OS-level sandboxing** — worth being explicit about this distinction if it ever comes up externally. Crash-restart is real (`crates/recovery/src/crash_recovery.rs`: exponential backoff, quarantine after repeated crashes; `driver_runtime/src/container.rs` tracks `crash_count` and allows `Stopped → Starting`), and `driver_runtime/src/sandbox.rs` enforces real in-process capability/syscall/file-access policy checks. But there's no `unsafe`, no `process::Command`/fork, no seccomp/cgroup/namespace usage anywhere in `driver_runtime` — drivers run in-process with the kernel object model, not as separate unprivileged OS processes. That's consistent with this repo's stated userspace-prototype scope (see CLAUDE.md), not a bug to fix, but the gap between "policy-level isolation" and "real process isolation" matters if this is ever pitched as literal driver crash containment.
 
@@ -197,7 +197,7 @@ crates/
 ## Build & Test
 
 ```bash
-cargo test --workspace                      # 764 tests
+cargo test --workspace                      # 767 tests
 cargo clippy --workspace -- -D warnings     # lint, clean
 cargo fmt --check                           # formatting, clean
 cargo build --workspace                     # build everything

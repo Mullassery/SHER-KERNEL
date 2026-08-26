@@ -54,7 +54,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 license = "Proprietary License — Free to use with explicit attribution"
@@ -69,6 +69,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
+crossbeam-queue = "0.3"
 
 [package]
 name = "sher-kernel"

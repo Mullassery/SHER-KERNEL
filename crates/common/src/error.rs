@@ -32,6 +32,9 @@ pub enum Error {
     #[error("Storage error: {0}")]
     Storage(String),
 
+    #[error("IPC error: {0}")]
+    Ipc(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -56,6 +59,12 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
         let err: Error = io_err.into();
         assert!(matches!(err, Error::Io(_)));
+    }
+
+    #[test]
+    fn ipc_error_includes_context() {
+        let err = Error::Ipc("mailbox full: frame".to_string());
+        assert_eq!(err.to_string(), "IPC error: mailbox full: frame");
     }
 
     #[test]

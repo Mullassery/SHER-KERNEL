@@ -5,7 +5,7 @@
 **Project Name**: SHER Kernel (Strength, Resilience, Intelligence, Adaptability)
 **Type**: Userspace prototype of OS-kernel object-model/scheduling/memory/driver-lifecycle concepts — **not a bootable kernel**
 **Language**: Rust (`std` + `tokio`; no `no_std`, no bootloader, no ring-0 code anywhere in this workspace)
-**Status**: 40 crates, 764 tests passing, `clippy -D warnings` and `fmt --check` clean. See [README.md](README.md) for the authoritative real-vs-simulated breakdown per crate.
+**Status**: 40 crates, 767 tests passing, `clippy -D warnings` and `fmt --check` clean. See [README.md](README.md) for the authoritative real-vs-simulated breakdown per crate.
 **Author**: Georgi Mammen Mullassery
 
 Earlier revisions of this file said "Phase 0 Foundation — Architecture Complete, Implementation Started" while other docs in this repo simultaneously claimed "v1.0.0 Production Ready" and "13/13 phases complete" — those two characterizations directly contradicted each other, and neither was accurate. This file has been corrected to describe what the code actually does. It runs as an ordinary process on your existing OS; it does not boot on bare metal.
@@ -131,7 +131,7 @@ The numbered "Week N" phase roadmap that used to live here was aspirational scaf
 - **AI services** — done as real logic over synthetic/caller-supplied metrics: anomaly detection, predictive allocation, adaptive scheduling, reinforcement learning (`ai`). Not connected to any live kernel telemetry, because there is no live kernel to instrument.
 - **Hardening** — done: memory-safety checks, syscall-parameter/return-value validation, object pooling, profiling (`hardening`, `security_audit`, `performance_optimization`, `profiling`).
 
-Run `cargo test --workspace` for the current, authoritative count (764 as of this revision) rather than trusting any number written in prose here or elsewhere — prose test counts are exactly what went stale before.
+Run `cargo test --workspace` for the current, authoritative count (767 as of this revision) rather than trusting any number written in prose here or elsewhere — prose test counts are exactly what went stale before.
 
 ## Implementation Patterns
 
