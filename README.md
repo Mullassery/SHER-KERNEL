@@ -22,7 +22,7 @@ If you came here expecting a kernel you can boot on bare metal, this is not that
 
 ## Status
 
-- **767 unit/integration tests, 100% passing** (`cargo test --workspace`)
+- **768 unit/integration tests, 100% passing** (`cargo test --workspace`, re-verified this pass; earlier revisions of this file said 767 — off by one, corrected here rather than left stale)
 - **`cargo clippy --workspace -- -D warnings`**: clean
 - **`cargo clippy --workspace --all-targets -- -D warnings`**: not clean — this repo had no CI at all until this pass, so nothing had ever checked lints inside `#[cfg(test)]` modules and `benches/`. Real, pre-existing warnings (mostly `clippy::clone_on_copy` on the `Copy`-deriving `ObjectId`, plus a handful of `identity_op`/`unnecessary_cast`/`module_inception`/`len_zero`/etc.) exist in the `#[cfg(test)]` code of `crates/ai`, `crates/device_manager`, `crates/driver_runtime`, `crates/kernel`, `crates/lki`, `crates/performance_benchmarks`, `crates/security_audit`, `crates/system_integration`, and `crates/wayland_server`, plus one `clippy::unit_arg` warning in `crates/memory`'s `benches/allocator_bench.rs`. None of them are in the library/binary code the narrower, currently-enforced command above covers. Tracked as real follow-up work, not fixed in this pass.
 - **`cargo fmt --check`**: clean
@@ -197,7 +197,7 @@ crates/
 ## Build & Test
 
 ```bash
-cargo test --workspace                      # 767 tests
+cargo test --workspace                      # 768 tests
 cargo clippy --workspace -- -D warnings     # lint, clean
 cargo fmt --check                           # formatting, clean
 cargo build --workspace                     # build everything
@@ -207,6 +207,12 @@ cargo doc --workspace --no-deps --open      # browse per-crate simulation-bounda
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** — architecture and implementation guide for this repo
+- **[VISION.md](VISION.md)** — why this repo exists and what it's actually
+  prototyping, rewritten to match this README's standard (no longer the old
+  "operating system for the next decade" pitch)
+- **[ROADMAP.md](ROADMAP.md)** — what's built per crate, what's explicitly
+  not started, and a concrete near-term plan (also rewritten; no longer the
+  old 16-week production-release schedule)
 - **[API_REFERENCE.md](API_REFERENCE.md)** — per-crate API reference (see individual crate doc comments for the authoritative simulation-boundary notes)
 - Older docs (`FINAL_COMPLETION_STATUS.md`, `PROJECT_COMPLETION_SUMMARY.md`, `RELEASE_NOTES_1_0_0.md`, `BENCHMARK_RESULTS.md`, `PERFORMANCE_METRICS.md`, phase-plan files, etc.) describe an earlier, more marketing-driven characterization of this project ("v1.0.0 Production Ready"). They are kept for history but carry a correction notice at the top pointing back here; this README is the current source of truth.
 
