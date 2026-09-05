@@ -212,7 +212,7 @@ cargo doc --workspace --no-deps --open      # browse per-crate simulation-bounda
 
 ## License
 
-Proprietary License — free to use with explicit attribution to Georgi Mammen Mullassery. See [LICENSE](LICENSE).
+This project is licensed under the [Apache License 2.0](LICENSE).
 
 ## Contact & Attribution
 
