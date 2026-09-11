@@ -20,6 +20,22 @@ It **is**:
 
 If you came here expecting a kernel you can boot on bare metal, this is not that project (yet, if ever). If you came here to look at how a capability-based, driver-isolated object model could be designed and tested in Rust, that's exactly what's here.
 
+## Use cases
+
+- **Prototyping capability-based, time-bounded permission models** before
+  committing to a real kernel/hardware implementation — `security`/
+  `objectmodel` give real, unit-tested state machines to design against.
+- **Testing driver lifecycle and crash-recovery policy** in-process —
+  `driver_runtime`/`recovery` provide real sandbox/quarantine/backoff logic
+  without needing actual privileged driver code.
+- **Providing the shared value types/traits (`hal`, `gpu_driver`,
+  `wayland_server`) that sibling repos `SHER-Graphics` and `SHER-Display`
+  build on** — this is this repo's primary real-world role today (see
+  [Cross-repo boundary](#cross-repo-boundary)).
+- **Not a fit for:** anything needing to actually boot, talk to real
+  hardware, or provide OS-level process isolation — see
+  [What this project actually is](#what-this-project-actually-is) above.
+
 ## Status
 
 - **768 unit/integration tests, 100% passing** (`cargo test --workspace`, re-verified this pass; earlier revisions of this file said 767 — off by one, corrected here rather than left stale)
@@ -214,7 +230,17 @@ cargo doc --workspace --no-deps --open      # browse per-crate simulation-bounda
   not started, and a concrete near-term plan (also rewritten; no longer the
   old 16-week production-release schedule)
 - **[API_REFERENCE.md](API_REFERENCE.md)** — per-crate API reference (see individual crate doc comments for the authoritative simulation-boundary notes)
-- Older docs (`FINAL_COMPLETION_STATUS.md`, `PROJECT_COMPLETION_SUMMARY.md`, `RELEASE_NOTES_1_0_0.md`, `BENCHMARK_RESULTS.md`, `PERFORMANCE_METRICS.md`, phase-plan files, etc.) describe an earlier, more marketing-driven characterization of this project ("v1.0.0 Production Ready"). They are kept for history but carry a correction notice at the top pointing back here; this README is the current source of truth.
+- **[`docs/archive/`](docs/archive/)** — 23 older docs (completion/release/
+  milestone summaries, phase plans, the original `ARCHITECTURE.md`/
+  `ENGINEERING_CHARTER.md`/`SLCI.md`, and early performance-target/research
+  notes) describing an earlier, more marketing-driven characterization of
+  this project ("v1.0.0 Production Ready," "surpasses Linux on every
+  measurable metric," sub-500ms boot claims for a kernel binary that
+  doesn't boot). All 23 now carry a correction notice at the top pointing
+  back here (three of them — `ARCHITECTURE.md`, `ENGINEERING_CHARTER.md`,
+  `SLCI.md` — didn't have one until this pass, despite containing the same
+  category of claim this README explicitly disowns). Kept for history;
+  this README is the current source of truth.
 
 ## License
 

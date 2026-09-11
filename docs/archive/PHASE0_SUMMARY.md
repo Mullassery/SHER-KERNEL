@@ -1,5 +1,8 @@
 # SHER Kernel - Phase 0 Complete
 
+> **Status correction (see [README.md](../../README.md)):** This document is an early planning/research artifact from before the workspace's honesty pass. Specific numbers, dates, and "beat Linux" targets below are aspirational/historical, not validated results. See README.md and CLAUDE.md for the current, accurate status. This file is kept for historical reference only.
+
+
 **Date**: August 6, 2026  
 **Status**: ✅ Foundation Architecture Complete  
 **Build Status**: ✅ All 24 crates compiling  

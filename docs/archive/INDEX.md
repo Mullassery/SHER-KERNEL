@@ -1,6 +1,6 @@
 # SHER Kernel: Complete Architecture Index
 
-> **Status correction (see [README.md](README.md)):** This document reflects an early snapshot (13-24 crates, ~1,400-2,000 LOC) and is stale — the workspace has since grown to 40 crates with 764 tests. See README.md for the current, accurate status and per-crate breakdown. Kept for historical reference only.
+> **Status correction (see [README.md](../../README.md)):** This document reflects an early snapshot (13-24 crates, ~1,400-2,000 LOC) and is stale — the workspace has since grown to 40 crates with 764 tests. See README.md for the current, accurate status and per-crate breakdown. Kept for historical reference only.
 
 
 ## 📊 Project Status
@@ -20,7 +20,7 @@
 ## 📚 Documentation Structure
 
 ### 1. Project Overview
-- **[README.md](README.md)** — Vision, mission, core architecture overview
+- **[README.md](../../README.md)** — Vision, mission, core architecture overview
 - **[QUICK_START.md](QUICK_START.md)** — Developer quick reference and setup
 
 ### 2. Architectural Design
@@ -373,7 +373,7 @@ Shell/Application Startup
 
 ## 📖 How to Use This Index
 
-1. **Start with**: [README.md](README.md) for project vision
+1. **Start with**: [README.md](../../README.md) for project vision
 2. **Deep dive**: [ARCHITECTURE.md](ARCHITECTURE.md) for four pillars
 3. **Understand compatibility**: [SLCI.md](SLCI.md) for Linux compatibility strategy
 4. **Begin coding**: [QUICK_START.md](QUICK_START.md) for development setup

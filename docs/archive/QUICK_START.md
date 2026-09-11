@@ -1,6 +1,6 @@
 # SHER Kernel Quick Start
 
-> **Status correction (see [README.md](README.md)):** This document reflects an early snapshot (13-24 crates, ~1,400-2,000 LOC) and is stale — the workspace has since grown to 40 crates with 764 tests. See README.md for the current, accurate status and per-crate breakdown. Kept for historical reference only.
+> **Status correction (see [README.md](../../README.md)):** This document reflects an early snapshot (13-24 crates, ~1,400-2,000 LOC) and is stale — the workspace has since grown to 40 crates with 764 tests. See README.md for the current, accurate status and per-crate breakdown. Kept for historical reference only.
 
 
 ## Project Initialized ✓

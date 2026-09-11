@@ -1,5 +1,8 @@
 # SHER Memory Architecture: Design & Optimization
 
+> **Status correction (see [README.md](../../README.md)):** This document is an early planning/research artifact from before the workspace's honesty pass. Specific numbers, dates, and "beat Linux" targets below are aspirational/historical, not validated results. See README.md and CLAUDE.md for the current, accurate status. This file is kept for historical reference only.
+
+
 **Document Status**: Phase 1 Week 1 - Architecture Design (Day 3)  
 **Target Completion**: August 8, 2026  
 **Page Target**: 40+ pages  

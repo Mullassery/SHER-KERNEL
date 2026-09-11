@@ -1,4 +1,7 @@
 ---
+# STATUS CORRECTION (see ../../README.md): early planning artifact predating
+# this workspace's honesty pass. "Beat Linux" targets below are aspirational,
+# not validated results. Kept for historical reference only.
 # SHER Kernel Performance Targets
 # Complete specification of 50+ metrics to beat Linux
 # Date: August 6, 2026

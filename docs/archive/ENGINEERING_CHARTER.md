@@ -1,5 +1,8 @@
 # SHER Kernel Engineering Charter
 
+> **Status correction (see [README.md](../../README.md)):** This document was written when the project marketed itself as "v1.0.0 Production Ready" / "COMPLETE," describing a bootable kernel that surpasses Linux performance. That characterization is inaccurate: this is a userspace Rust workspace (no bootloader, no ring-0 code, not a bootable kernel), and the specific claims, performance figures, and boot-time numbers below predate an honesty pass and should not be trusted. See README.md and CLAUDE.md for the current, accurate status. This file is kept for historical reference only.
+
+
 ## The Challenge
 
 **Design a kernel that doesn't just match Linux—it surpasses it on every measurable metric.**
