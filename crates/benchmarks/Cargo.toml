@@ -16,7 +16,7 @@ sher_lki = { path = "../lki" }
 sher_security = { path = "../security" }
 sher_ai = { path = "../ai" }
 tokio = { version = "1", features = ["full"] }
-criterion-plot = "0.5"
+criterion-plot = "0.8"
 
 [[bench]]
 name = "memory_allocation"
