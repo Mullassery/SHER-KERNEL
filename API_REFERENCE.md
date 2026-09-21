@@ -1,6 +1,20 @@
 # SHER Kernel - API Reference
 
-**Version**: 1.0.0  
+> **Correction notice (added during the 2026 documentation-honesty pass):**
+> This file predates that pass and was not fully rewritten (unlike
+> README.md/CLAUDE.md/VISION.md/ROADMAP.md). It still says "Version 1.0.0",
+> "Production Use", and labels sections "Phase 11/12/13" as if this were a
+> shipped, production kernel with a phase-based release history. None of
+> that is accurate — see [README.md](README.md) for the current, honest
+> status (40 userspace crates, simulation-layer, not a bootable kernel) and
+> [CLAUDE.md](CLAUDE.md) for architecture. The **code examples and per-crate
+> descriptions below are still a reasonable index of the real API surface**;
+> treat the version number, "Production Use" framing, and "Phase N" section
+> titles as stale labeling, not as an accurate release history. For the
+> authoritative, always-current API surface, prefer
+> `cargo doc --workspace --no-deps --open` over this file.
+
+**Version**: 1.0.0 *(stale — see correction notice above; workspace version is actually 0.3.0, see root `Cargo.toml`)*
 **Target**: Rust 1.70+
 
 ---

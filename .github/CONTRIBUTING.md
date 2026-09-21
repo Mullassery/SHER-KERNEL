@@ -1,6 +1,6 @@
 # Contributing to SHER Kernel
 
-SHER Kernel is a research-grade kernel project demonstrating a complete architectural reimagining of operating systems for the AI era. We welcome contributions from developers, researchers, and systems engineers interested in kernel architecture and AI-native computing.
+SHER Kernel is a userspace Rust workspace prototyping OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts — see [README.md](../README.md) for what it actually is (not a bootable kernel). We welcome contributions from developers interested in that kind of systems-architecture prototyping in Rust.
 
 ## Code of Conduct
 
@@ -48,17 +48,17 @@ SHER Kernel is built on core principles that guide all contributions:
 ## Before Contributing
 
 1. Read CLAUDE.md for architectural guidelines
-2. Understand the module you're contributing to
-3. Run the full test suite locally: `cargo test --lib`
-4. Ensure code compiles without warnings: `cargo check`
+2. Understand the module (crate) you're contributing to
+3. Run the full test suite locally: `cargo test --workspace`
+4. Ensure code compiles without warnings: `cargo clippy --workspace -- -D warnings`
 
 ## Contribution Process
 
 ### For Bug Reports
-1. Verify the bug with the latest code: `cargo test --lib`
+1. Verify the bug with the latest code: `cargo test --workspace`
 2. Include the failing test case or reproduction steps
 3. Describe the expected vs. actual behavior
-4. Note the phase/module where the bug appears
+4. Note the crate where the bug appears
 
 ### For New Features
 1. Discuss the feature in an issue first
@@ -76,8 +76,8 @@ SHER Kernel is built on core principles that guide all contributions:
 
 Every pull request must:
 
-1. **Pass all tests**: `cargo test --lib` with 100% pass rate
-2. **Compile without warnings**: `cargo check` must be clean
+1. **Pass all tests**: `cargo test --workspace` with 100% pass rate
+2. **Compile without warnings**: `cargo clippy --workspace -- -D warnings` must be clean (this is what CI enforces; `cargo clippy --workspace --all-targets` currently has pre-existing warnings in test/bench code — see ROADMAP_HONEST.md — don't let a PR add new ones)
 3. **Follow naming conventions**:
    - PascalCase for types and modules
    - snake_case for functions and variables
@@ -166,44 +166,38 @@ Reviewers may request changes to:
 
 ## Testing Standards
 
-All contributions must maintain or improve test coverage:
-
-- Memory Management: 50+ tests
-- Device Manager: 65+ tests
-- Driver Runtime: 81 tests
-- LKI/Translation: 72 tests
-- Security: 24+ tests
-
-Total target: 292+ tests with 100% passing rate.
+All contributions must maintain or improve test coverage. Don't trust a
+fixed per-crate test count in this doc — they go stale (this section
+previously listed specific counts, e.g. "Driver Runtime: 81 tests," that
+were no longer accurate). Run `cargo test --workspace` and check
+README.md's "Status" section for the current, re-verified total.
 
 Run tests with options:
 ```bash
 # All tests
-cargo test --lib
+cargo test --workspace
 
-# Specific subsystem
-cargo test --lib --package sher_driver_runtime
+# Specific crate
+cargo test --workspace --package sher_driver_runtime
 
 # With logging output
-RUST_LOG=debug cargo test --lib -- --nocapture
+RUST_LOG=debug cargo test --workspace -- --nocapture
 
 # Single-threaded for debugging
-cargo test --lib -- --test-threads=1
+cargo test --workspace -- --test-threads=1
 ```
 
 ## Performance Considerations
 
-When optimizing, maintain these targets:
-
-- Boot time: < 2 seconds to interactive shell
-- Interrupt latency: < 100 microseconds
-- Allocation fast path: < 50 nanoseconds
-- Driver isolation overhead: < 5% performance impact
-
-Profile before optimizing:
-- Use `perf` for CPU profiling
-- Track latency with built-in instrumentation
-- Benchmark allocation performance separately
+This repo does not boot, has no interrupt controller, and has never been
+benchmarked against a real Linux kernel — so there is no honest "boot
+time" or "interrupt latency" target to hold code to (an earlier version of
+this section listed such targets; they described a bootable kernel this
+repo isn't). If you're optimizing `crates/memory`'s allocators or
+`crates/benchmarks`/`crates/performance_benchmarks`, the actual bar is:
+don't regress the existing Criterion benchmarks (`cargo bench --workspace`)
+without calling that out in the PR description, and profile with `perf`/
+`cargo flamegraph` before micro-optimizing rather than guessing.
 
 ## Commit Message Guidelines
 
@@ -234,10 +228,6 @@ Examples:
 
 ## Recognition
 
-Contributors will be recognized in:
-- Commit history
-- Release notes
-- CONTRIBUTORS.md file
-- GitHub contributor graph
+Contributors are recognized via commit history, CHANGELOG.md entries, and the GitHub contributor graph. (There is no separate `CONTRIBUTORS.md` file at this time.)
 
-SHER Kernel is built by the community of developers passionate about systems architecture and AI-native computing. Thank you for contributing to the future of operating systems.
+Thank you for contributing.

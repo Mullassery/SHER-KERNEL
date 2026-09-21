@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose a new feature or subsystem for SHER Kernel
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        See VISION.md's "Non-goals" section and ROADMAP.md's "What's
+        explicitly not started" section first — some things (a bootable
+        kernel, real cross-process IPC, real hardware I/O) are deliberately
+        out of scope for this repo as currently structured, not omissions.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What's missing or awkward today, in this repo's actual current state (not an assumed future state)?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Which crate(s) would this touch? Does it cross the SHER-Graphics/SHER-Display boundary (see README's "Cross-repo boundary" section)?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

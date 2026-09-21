@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a bug in one of SHER Kernel's 40 crates
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: this is a userspace simulation-layer workspace, not
+        a bootable kernel (see README.md). "It doesn't talk to real
+        hardware" is expected, documented behavior in most crates, not a
+        bug — check README's "What's real vs. simulated" table first.
+  - type: input
+    id: crate
+    attributes:
+      label: Affected crate(s)
+      description: e.g. crates/memory, crates/lki
+      placeholder: crates/...
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect vs. what actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps or failing test case. A failing `cargo test` invocation is ideal.
+      placeholder: |
+        cargo test --workspace --package sher_<crate> <test_name>
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Rust toolchain version (`rustc --version`), commit hash
+    validations:
+      required: true

@@ -1,175 +1,107 @@
 GitHub Guide: SHER Kernel
 
-Welcome to the SHER Kernel repository. This guide helps you navigate the project and understand its structure.
+Welcome to the SHER Kernel repository. This guide helps you navigate the
+project and understand its structure.
+
+> **Note (2026 documentation-honesty pass):** this file previously
+> described SHER Kernel as "a completely new kernel design" that "proves
+> you can run existing Linux drivers on a fundamentally different kernel
+> architecture," quoted invented performance numbers ("Memory allocation:
+> <0.2μs (vs Linux ~0.25μs)"), and pointed at root-level docs
+> (`QUICK_START.md`, `PERFORMANCE_METRICS.md`, `ARCHITECTURE.md`) that no
+> longer exist at the repo root. None of that was accurate. It's rewritten
+> here to match [README.md](../README.md), the current source of truth.
 
 ## What is SHER Kernel?
 
-SHER Kernel is a ground-up reimagining of operating system architecture for the AI era. It's not a Linux fork—it's a completely new kernel design built for artificial intelligence workloads, with strong security guarantees and capability-based access control.
-
-**Key Innovation**: SHER proves that you can run existing Linux drivers on a fundamentally different kernel architecture without inheriting Linux's internal design constraints.
+SHER Kernel is a userspace Rust workspace (40 crates) that prototypes what
+the internal APIs of a from-scratch OS kernel might look like: a
+capability-based object model, a priority scheduler, tiered memory
+bookkeeping, a driver lifecycle/registry, crash recovery, and an A/B
+transactional updater. It runs as an ordinary process on macOS/Linux — it
+is **not** a bootable kernel, has no bootloader or ring-0 code, and has
+never been benchmarked against a real Linux kernel. See
+[README.md](../README.md) for the full, per-crate real-vs-simulated
+breakdown.
 
 ## Quick Navigation
 
-### For the Impatient (5 minutes)
-- Start with the README overview
-- Check QUICK_START.md for running tests
-- Look at PERFORMANCE_METRICS.md for actual numbers
-
-### For Developers (30 minutes)
-- Read CLAUDE.md for architecture specifications
-- Review ARCHITECTURE.md for system design
-- Check .github/CONTRIBUTING.md for development guidelines
-- Explore crates/ directory structure
-
-### For System Designers (1 hour)
-- Study ENGINEERING_CHARTER.md for design philosophy
-- Review ROADMAP.md for long-term vision
-- Examine sher_memory_architecture.md and linux_memory_analysis.md
-- Check test coverage and performance benchmarks
-
-### For Researchers (2+ hours)
-- Deep dive into ARCHITECTURE.md and CLAUDE.md
-- Analyze AI services implementation in crates/ai/
-- Review capability-based security system in crates/security/
-- Study Linux Kernel Interface translation layer in crates/lki/
+- **Start here**: [README.md](../README.md) — what this is, current test
+  status, per-crate real-vs-simulated breakdown, known gaps.
+- **Architecture**: [CLAUDE.md](../CLAUDE.md) (implementation guide),
+  [docs/architecture/README.md](../docs/architecture/README.md) (crate
+  dependency graph).
+- **Why this exists / non-goals**: [VISION.md](../VISION.md).
+- **What's built vs. not, and what's next**: [ROADMAP.md](../ROADMAP.md),
+  [ROADMAP_HONEST.md](../ROADMAP_HONEST.md) (technical debt ledger).
+- **API surface**: [API_REFERENCE.md](../API_REFERENCE.md) — carries its
+  own correction notice; prefer `cargo doc --workspace --no-deps --open`
+  for the authoritative current API.
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Historical/superseded docs** (kept for history, not current):
+  [docs/archive/](../docs/archive/) — 23 older docs from when this project
+  described itself as "v1.0.0 Production Ready" and made unvalidated
+  Linux-performance-comparison claims; each now carries a correction
+  notice.
 
 ## Repository Structure
 
 ```
 SHER-Kernel/
-├── README.md                    # Start here: Project overview
-├── QUICK_START.md              # Get running in 5 minutes
-├── PERFORMANCE_METRICS.md      # Actual benchmark results
-├── ARCHITECTURE.md             # System design deep-dive
-├── CLAUDE.md                   # Complete architecture spec
-├── LICENSE                     # Attribution-based license
+├── README.md                    # Start here: honest project overview
+├── VISION.md                    # Why this exists, non-goals
+├── ROADMAP.md                   # What's built, what isn't, near-term plan
+├── ROADMAP_HONEST.md            # Technical debt ledger / verification snapshot
+├── CLAUDE.md                    # Architecture & implementation guide
+├── API_REFERENCE.md             # Per-crate API index (see its correction notice)
+├── CHANGELOG.md                 # Keep a Changelog-style history
+├── SECURITY.md                  # How to report a vulnerability (no formal SLA)
+├── LICENSE                      # Apache License 2.0
 ├── .github/
-│   ├── CONTRIBUTING.md         # How to contribute
-│   ├── CODE_OF_CONDUCT.md      # Community standards
-│   └── GITHUB_GUIDE.md         # This file
-└── crates/
-    ├── common/                 # Shared types and utilities
-    ├── objectmodel/            # Core kernel object model
-    ├── security/               # Capability-based security system
-    ├── memory/                 # Lock-free memory allocator (750 LOC, 50+ tests)
-    ├── device_manager/         # Hardware discovery (1,800 LOC, 65+ tests)
-    ├── driver_runtime/         # Isolated driver execution (2,600 LOC, 81 tests)
-    ├── lki/                    # Linux Kernel Interface (2,727 LOC, 72 tests)
-    ├── ai/                     # AI-native services (3,018 LOC, 48 tests)
-    └── kernel/                 # Main kernel entry point
+│   ├── CONTRIBUTING.md          # How to contribute
+│   ├── CODE_OF_CONDUCT.md       # Community standards
+│   ├── GITHUB_GUIDE.md          # This file
+│   ├── ISSUE_TEMPLATE/          # Bug report / feature request forms
+│   ├── pull_request_template.md
+│   ├── dependabot.yml           # Automated dependency update PRs
+│   └── workflows/ci.yml         # fmt / build / test / clippy
+├── docs/
+│   ├── architecture/README.md   # Crate dependency graph (Mermaid)
+│   └── archive/                 # Superseded docs, kept for history
+└── crates/                      # 40 crates — see README's "Project Organization"
 ```
-
-## Key Features
-
-### Anomaly Detection
-- MemoryLeakDetector: 50MB/s threshold
-- InterruptStormDetector: 10k+/sec threshold
-- DmaAbuseDetector: 100+ concurrent ops detection
-
-### Predictive Allocation
-- 1-second ahead predictions with confidence scoring
-- Exponential moving average learning
-- CPU affinity and NUMA optimization
-
-### Adaptive Scheduling
-- Real-time strategy selection (4 strategies)
-- SLO tracking and enforcement
-- Automatic strategy switching
-
-### Continuous Learning
-- Behavior model with peak/average tracking
-- Correlation analysis (CPU-memory, CPU-latency, IO-latency)
-- Trend prediction
-
-### Inference Engine
-- 8-dimensional feature vector
-- Four decision types
-- <1ms inference latency
-
-### Reinforcement Learning
-- 7 reward signal types
-- Per-driver policy learning
-- Global policy aggregation
 
 ## Test Coverage
 
-- 335+ comprehensive tests
-- 100% pass rate
-- All subsystems tested independently
-- Run with: `cargo test --lib`
-
-## Performance
-
-- Memory allocation: <0.2μs (vs Linux ~0.25μs)
-- Device management: -40% to <35% overhead (better than Linux in many cases)
-- Lock-free allocation fast-path: <50ns target
-- Overall overhead: <25% vs Linux for comparable features
+Don't trust a number written in prose in any doc, including this one —
+they go stale. Run `cargo test --workspace` yourself, or read README.md's
+"Status" section, which is re-verified each documentation pass.
 
 ## Development
 
-### Building
 ```bash
-cargo build --release
+cargo build --workspace              # build everything
+cargo test --workspace               # run the full test suite
+cargo fmt --check                    # formatting
+cargo clippy --workspace -- -D warnings   # lint (the bar CI enforces)
+cargo doc --workspace --no-deps --open    # browse per-crate API + simulation-boundary docs
 ```
-
-### Running Tests
-```bash
-cargo test --lib
-```
-
-### Checking Code Quality
-```bash
-cargo check
-cargo clippy --all-targets
-```
-
-### Reading Documentation
-- Inline code documentation in all modules
-- Architecture overview in ARCHITECTURE.md
-- Design decisions in CLAUDE.md
-- Performance analysis in PERFORMANCE_METRICS.md
 
 ## Project Status
 
-**Phase 6 (Week 3) Complete**: AI Services Foundation
-- Anomaly detection engines
-- Predictive resource allocation
-- Adaptive scheduling
-- Continuous learning
-- Inference engine
-- Reinforcement learning
-
-**Total**: 14,095 LOC, 335+ tests, 100% pass rate
-
-## Philosophy
-
-SHER Kernel embodies four design principles:
-
-1. **AI-Native**: Artificial intelligence is OS infrastructure, not an application
-2. **Compatibility Without Dependency**: Linux driver ecosystem support without Linux inheritance
-3. **Modular by Design**: Every subsystem is independently replaceable and testable
-4. **Security by Architecture**: Capability-based permissions from first principles
-
-## Next Steps
-
-1. **Star the Repository** if you find this interesting
-2. **Read the README** for comprehensive overview
-3. **Run the Tests** to see it in action
-4. **Review CONTRIBUTING.md** if you want to participate
-5. **Open Issues** for bugs or feature requests
+See README.md's "Status" section for the current, re-verified test count,
+clippy/fmt state, and per-crate real-vs-simulated table. This file
+intentionally does not restate those numbers to avoid going stale again.
 
 ## Important Links
 
 - **GitHub**: https://github.com/Mullassery/SHER-KERNEL
 - **Author Email**: mullassery@gmail.com
-- **License**: Attribution-based (see LICENSE file)
+- **License**: [Apache License 2.0](../LICENSE)
 
 ## Community
 
-- Code of Conduct: See .github/CODE_OF_CONDUCT.md
-- Contributing Guidelines: See .github/CONTRIBUTING.md
-- Discussion: Use GitHub issues for discussions
-
----
-
-SHER Kernel: Where AI meets systems architecture. Not evolution. Revolution.
+- Code of Conduct: see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Contributing Guidelines: see [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security issues: see [SECURITY.md](../SECURITY.md)
+- Discussion: use GitHub issues

@@ -1,6 +1,8 @@
 # Rust
 /target/
-Cargo.lock
+# Cargo.lock is intentionally committed: this workspace produces a real
+# binary (`sher-kernel`) and examples/benches, so the lockfile is tracked
+# for reproducible builds (see CI, which restores/caches against it).
 **/*.rs.bk
 *.pdb
 

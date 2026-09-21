@@ -40,7 +40,7 @@ If you came here expecting a kernel you can boot on bare metal, this is not that
 
 - **768 unit/integration tests, 100% passing** (`cargo test --workspace`, re-verified this pass; earlier revisions of this file said 767 — off by one, corrected here rather than left stale)
 - **`cargo clippy --workspace -- -D warnings`**: clean
-- **`cargo clippy --workspace --all-targets -- -D warnings`**: not clean — this repo had no CI at all until this pass, so nothing had ever checked lints inside `#[cfg(test)]` modules and `benches/`. Real, pre-existing warnings (mostly `clippy::clone_on_copy` on the `Copy`-deriving `ObjectId`, plus a handful of `identity_op`/`unnecessary_cast`/`module_inception`/`len_zero`/etc.) exist in the `#[cfg(test)]` code of `crates/ai`, `crates/device_manager`, `crates/driver_runtime`, `crates/kernel`, `crates/lki`, `crates/performance_benchmarks`, `crates/security_audit`, `crates/system_integration`, and `crates/wayland_server`, plus one `clippy::unit_arg` warning in `crates/memory`'s `benches/allocator_bench.rs`. None of them are in the library/binary code the narrower, currently-enforced command above covers. Tracked as real follow-up work, not fixed in this pass.
+- **`cargo clippy --workspace --all-targets -- -D warnings`**: not clean — this repo had no CI at all until an earlier pass, so nothing had ever checked lints inside `#[cfg(test)]` modules and `benches/`. Re-counted exactly this pass: **95 real, pre-existing warnings across 9 distinct clippy lint rules and 17 crate test/bench targets** (`clippy::clone_on_copy` on the `Copy`-deriving `ObjectId`/`u64` accounts for 72 of them alone — e.g. `crates/system_integration/src/lib.rs:145,166,236,277,280` and `crates/performance_benchmarks/src/lib.rs:288,421,430,459` — plus smaller counts of `len_zero` (5), `module_inception` (4), `unnecessary_cast` (4), `identity_op`/`field_reassign_with_default` (3 each), and one each of `redundant_pattern_matching`, `unit_arg`, `bool_comparison`). The previous revision of this line listed only 9 affected crates by name; the real, re-verified list is wider — see [ROADMAP_HONEST.md](ROADMAP_HONEST.md) for the full per-crate breakdown. None of them are in the library/binary code the narrower, currently-enforced command above covers. Tracked as real follow-up work, not fixed in this pass.
 - **`cargo fmt --check`**: clean
 - **`cargo build --workspace --all-targets`** (including `benches/`): clean as of this pass — 5 benchmark files (`crates/memory/benches/allocator_bench.rs`, `crates/benchmarks/benches/{memory_allocation,lki_translation,device_enumeration,security_checks}.rs`) didn't compile at all before this pass (missing `criterion` dev-dependency, and calls into `sher_lki`/`sher_device_manager`/`sher_security`/`MemoryAllocator` APIs that had since been redesigned). Rewrote each against the current real APIs and verified every benchmark function actually executes (`cargo bench --workspace -- --test`).
 - 40 crates surveyed; the ones that were near-empty stubs (`pub fn x() {}`) have been implemented with real, tested logic — see the breakdown below.
@@ -229,6 +229,16 @@ cargo doc --workspace --no-deps --open      # browse per-crate simulation-bounda
 - **[ROADMAP.md](ROADMAP.md)** — what's built per crate, what's explicitly
   not started, and a concrete near-term plan (also rewritten; no longer the
   old 16-week production-release schedule)
+- **[ROADMAP_HONEST.md](ROADMAP_HONEST.md)** — technical debt ledger
+  (exact clippy warning counts/file:line, unsafe/unwrap density, missing
+  fuzzing/dependency-audit CI) and a timestamped verification snapshot,
+  supplementing ROADMAP.md rather than replacing it
+- **[SECURITY.md](SECURITY.md)** — how to report issues; honest about
+  there being no dedicated security team or SLA
+- **[CHANGELOG.md](CHANGELOG.md)** — Keep a Changelog-style history
+- **[docs/architecture/README.md](docs/architecture/README.md)** — crate
+  dependency graph (Mermaid), generated from actual `Cargo.toml` path
+  dependencies
 - **[API_REFERENCE.md](API_REFERENCE.md)** — per-crate API reference (see individual crate doc comments for the authoritative simulation-boundary notes)
 - **[`docs/archive/`](docs/archive/)** — 23 older docs (completion/release/
   milestone summaries, phase plans, the original `ARCHITECTURE.md`/
