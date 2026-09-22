@@ -22,6 +22,15 @@ cache) on macOS/Darwin, `rustc`/`cargo` from the active toolchain:
 | `cargo clippy --workspace --all-targets` (no `-D warnings`) | **Not clean: 95 warnings**, spanning 9 distinct clippy lint rules across 17 crate test/bench targets. Full breakdown below. |
 | `cargo fmt --check` | Clean. |
 
+**Updated snapshot (quick-fix pass, 2026-09)** — see "Quick-fix pass
+(2026-09), summary" at the end of this file for what changed:
+`cargo test --workspace` now passes **769/769**;
+`cargo clippy --workspace --all-targets` is now **clean (0 warnings)**,
+same as the `-D warnings` variant; `cargo build --workspace --all-targets`
+and `cargo fmt --check` remain clean. The rows above are left as originally
+written (a snapshot of that pass, not retroactively edited) — items 2 and 4
+below are annotated inline with what was fixed since.
+
 ## Technical debt found this pass (concrete, file:line)
 
 ### 1. `Cargo.lock` was gitignored and untracked — fixed this pass
@@ -36,10 +45,11 @@ cache key is `hashFiles('Cargo.lock')`, which was hashing a file that
 didn't exist in the checkout). Fixed: removed the `Cargo.lock` line from
 `.gitignore` and committed the (freshly regenerated) lockfile.
 
-### 2. `cargo clippy --workspace --all-targets` — 95 warnings, real breakdown
+### 2. `cargo clippy --workspace --all-targets` — 95 warnings — ~~fixed this pass~~ FIXED (quick-fix pass, 2026-09)
 
 Previously, README/ROADMAP described this qualitatively ("a handful of
-X/Y/Z warnings in ~9 named crates"). Re-counted exactly this pass:
+X/Y/Z warnings in ~9 named crates"). Re-counted exactly in the pass that
+added this file:
 
 | Lint | Count | Example |
 |---|---|---|
@@ -59,15 +69,33 @@ Per-target warning counts (from `cargo clippy --workspace --all-targets`,
 `sher_lki` 7, `performance_benchmarks` 5, `sher_ai` 5, `security_audit` 4,
 `hardening` 4, `sher_driver_runtime` 3, `sher_device_manager` 3, `hal` 2,
 `wayland_server` 1, `input_driver` 1, `sher_aro` 1, `sher_kernel` 1,
-`sher_memory` (bench `allocator_bench`) 1. All of it is confined to
-`#[cfg(test)]`/`tests.rs`/`benches/` code — none of it is in library or
+`sher_memory` (bench `allocator_bench`) 1. All of it was confined to
+`#[cfg(test)]`/`tests.rs`/`benches/` code — none of it was in library or
 binary code, which is why the narrower, CI-enforced
-`cargo clippy --workspace -- -D warnings` stays clean. This is real,
-scoped, low-risk cleanup (mostly mechanical `clone()` → nothing-needed on
-`Copy` types); it was deliberately **not** fixed in this pass per this
-project's "disclosure-first" standardization convention — it's exactly
-the kind of self-contained follow-up a dedicated session should do so the
-fix is reviewable on its own, not buried in a docs commit.
+`cargo clippy --workspace -- -D warnings` was already clean.
+
+**Fixed in a follow-up "quick-fix" pass** (2026-09), as anticipated below:
+`cargo clippy --fix --workspace --all-targets --allow-dirty` mechanically
+resolved 87 of the 95 (all `clone_on_copy`, `len_zero`, `unnecessary_cast`,
+`identity_op`, `redundant_pattern_matching`, `unit_arg`, `bool_comparison`
+instances, plus 1 `field_reassign_with_default`); the remaining 8 needed a
+one-line hand fix each: 3 more `field_reassign_with_default` sites
+(`crates/kernel/src/kernel.rs`, `crates/recovery/src/crash_recovery.rs`,
+`crates/aro/src/lib.rs` — rewritten as struct-update-syntax literals) and 1
+`identity_op`-adjacent unnecessary-parens warning
+(`crates/lki/src/tests.rs:736`). The 4 `module_inception` warnings
+(`crates/{device_manager,driver_runtime,ai,lki}/src/tests.rs`) come from a
+structural quirk, not a real naming collision: `lib.rs` in each of those
+crates declares `#[cfg(test)] mod tests;` pointing at `tests.rs`, and
+`tests.rs` *itself* wraps its entire contents in another `mod tests { ... }`,
+nesting the module as `tests::tests`. Fully resolving that would mean
+re-indenting ~900-1200 lines per file for a purely cosmetic nesting issue
+that doesn't affect `cargo test` (it finds `#[test]` fns regardless of
+module depth) — left as `#[allow(clippy::module_inception)]` with a comment
+rather than risking a large mechanical re-indent in the same commit as
+everything else. `cargo clippy --workspace --all-targets` is now clean (0
+warnings); `cargo test --workspace` still passes in full (769/769, up by 1
+new regression test added in the same pass — see item 4).
 
 ### 3. `unsafe` code: confined to `crates/memory`, no `# Safety` doc comments
 
@@ -85,7 +113,7 @@ For allocator code doing raw pointer arithmetic, that's a real gap —
 `clippy::missing_safety_doc` would catch this but isn't enabled. Worth a
 follow-up pass specifically over `crates/memory`'s unsafe API surface.
 
-### 4. `.unwrap()` density in non-test library code paths
+### 4. `.unwrap()` density in non-test library code paths — mostly a false alarm; 5 real ones found and fixed (quick-fix pass, 2026-09)
 
 A repo-wide `grep -c '\.unwrap()'` across `crates/*/src/*.rs` (including
 both library code and in-tree `tests.rs` test modules, which is why some
@@ -98,14 +126,77 @@ of these numbers are inflated by tests) shows concentration in:
 `crates/scheduler/src/scheduler.rs` (8),
 `crates/performance_optimization/src/lib.rs` (8), `crates/memory/src/dma.rs` (8),
 `crates/aro/src/lib.rs` (8), `crates/interrupt/src/controller.rs` (7).
-The `.rs` files named `lib.rs`/`kernel.rs`/`ipc.rs`/`manager.rs`/
-`scheduler.rs`/`dma.rs`/`controller.rs` in that list are **real
-library-code unwraps**, not test code — each is a potential panic on
-malformed/unexpected internal state rather than a propagated `Result`.
-Not individually audited for exploitability in this pass (that's the
-scope of a dedicated follow-up, not a docs pass); flagged here as a
-concrete starting point rather than a vague "improve error handling"
-line.
+
+**Correction (quick-fix pass, 2026-09):** the claim above — that every file
+in that list *not* literally named `tests.rs` was "real library-code
+unwraps, not test code" — was checked line-by-line and was **wrong** for
+9 of the 11 `lib.rs`/`kernel.rs`-named files. `system_integration/src/lib.rs`,
+`wayland_server/src/lib.rs`, `gpu_driver/src/lib.rs`, `core/src/ipc.rs`,
+`services/src/manager.rs`, `scheduler/src/scheduler.rs`,
+`performance_optimization/src/lib.rs`, `memory/src/dma.rs`, and
+`aro/src/lib.rs` each have exactly one `#[cfg(test)] mod tests { ... }`
+block, and *every single* `.unwrap()` in each of those files falls inside
+it (verified by counting occurrences before vs. after each file's
+`#[cfg(test)]` line) — they're test-only, same as the files already
+labeled that way. The "filename heuristic" used to produce this section
+originally (`lib.rs`/`kernel.rs`/etc. ⇒ production code) doesn't hold when
+a crate keeps its tests in a `mod tests { ... }` block at the bottom of
+`lib.rs` instead of a separate `tests.rs` file, which is the majority
+pattern in this repo.
+
+Only `crates/kernel/src/kernel.rs` had real production-code unwraps: 2,
+both `SystemTime::now().duration_since(UNIX_EPOCH).unwrap()` (in `new()`
+and `uptime()`). **Fixed**: `new()` now propagates a clock error through
+its existing `Result` return type instead of panicking;
+`uptime()` (which returns a bare `u64`, part of this crate's public API, so
+its signature was left unchanged per this project's cross-repo API-stability
+rule) now uses `.unwrap_or_default()` plus `saturating_sub` instead of plain
+`-`, since the original `current_time - self.boot_time` would also panic
+on `u64` underflow if the clock ever read behind `boot_time`. Added a
+regression test, `uptime_does_not_panic_when_boot_time_is_in_the_future`,
+that reaches into the (test-visible) private `boot_time` field to set it to
+`u64::MAX` and asserts `uptime()` returns `0` instead of panicking; verified
+this test fails (`attempt to subtract with overflow`) against the
+pre-fix `current_time - self.boot_time` and passes against the fix.
+
+While fixing this, the same `duration_since(UNIX_EPOCH).unwrap()` pattern
+was found (via a separate `grep -rn "duration_since(UNIX_EPOCH)"`, not part
+of the original `.unwrap()` count above) in 4 more production-code
+call sites, all foundational object-model types used across the whole
+workspace: `crates/objectmodel/src/capabilities.rs:16` (`CapabilityGrant::new`)
+and `:39` (`CapabilityGrant::is_valid`), and
+`crates/objectmodel/src/lifecycle.rs:29,47,56` (`Lifecycle::default`/`start`/`stop`).
+Also fixed, with different fallbacks depending on how the value is used:
+`lifecycle.rs`'s three call sites are plain bookkeeping timestamps (not
+compared against anything), so they use `.unwrap_or_default()`, same as
+`kernel.rs`. `capabilities.rs`'s two call sites needed more care because
+they gate a security decision: `new()` uses `.unwrap_or_default()` (a
+clock failure there produces a grant stamped at the epoch, which reads as
+already-expired against any real subsequent clock reading — fails secure).
+`is_valid()` deliberately does **not** use the same `unwrap_or_default()`
+pattern — `now = 0` there would make `0 < expiry` true for any real
+`expiry`, i.e. it would fail *open* (every grant reads as valid during a
+clock glitch) — so it was written as
+`.map(|d| d.as_secs() < expiry).unwrap_or(false)` instead, which fails
+secure (an unreadable clock reads as "expired," not "valid forever" and
+not a panic). This asymmetry was caught by re-deriving the failure
+semantics for each call site individually rather than applying one
+mechanical find-replace across all 5 — flagging it here since it's the
+kind of subtlety a future pass touching this code should be aware of.
+Existing test suites for both files (`cargo test -p sher_objectmodel`, 18
+tests) pass unchanged; no new regression test was added for the clock-error
+branch specifically, because forcing `SystemTime::now()` to read before
+`UNIX_EPOCH` isn't mockable without introducing a clock-injection
+abstraction into these types, which would be a larger refactor than this
+quick-fix pass's scope (and would touch `CapabilityGrant`/`Lifecycle`,
+which other crates construct directly).
+
+Net result of re-auditing the 11 `lib.rs`/`kernel.rs`-named files in the
+original count: 9 were entirely test-only (this file's claim was wrong),
+and the 2 real production unwraps that did exist (both in `kernel.rs`) are
+now fixed, along with the 4 related sites found in `objectmodel` above.
+That leaves no known real `.unwrap()`-panic-on-clock-read sites in this
+repo's production code as of this pass.
 
 ### 5. No fuzzing, no `cargo-audit`/`cargo-deny` CI job
 
@@ -155,11 +246,13 @@ verify actually works in GitHub's runners without a live test run.
 
 ## What was deliberately not done this pass, and why
 
-- **Not fixing the 95 clippy `--all-targets` warnings.** Real, scoped,
-  mechanical work (see table above) — but it touches 17 crates' test/
-  bench code, and bundling it into a documentation-standardization commit
-  would make the diff harder to review for either purpose. Left as the
-  single, focused item ROADMAP.md's "Near-term plan" already names first.
+- ~~**Not fixing the 95 clippy `--all-targets` warnings.**~~ **Fixed in a
+  follow-up quick-fix pass (2026-09)** — see item 2 above and the summary
+  section at the end of this file. Originally deferred because it touched
+  17 crates' test/bench code and bundling it into a documentation-
+  standardization commit would have made the diff harder to review for
+  either purpose; done later as its own focused commit, as anticipated
+  here.
 - **Not adding a `cargo audit`/`cargo deny` CI job.** Would need a real
   CI run against GitHub's network-enabled runners to confirm it actually
   works (advisory-database fetch, config syntax); this sandbox has no
@@ -181,3 +274,48 @@ verify actually works in GitHub's runners without a live test run.
   simulated claims were spot-checked against README's existing table
   (which was itself produced by a prior, more granular pass) rather than
   re-derived from scratch.
+
+## Quick-fix pass (2026-09), summary
+
+A follow-up pass scoped specifically to low-risk, well-understood fixes
+(explicitly *not* architectural rewrites, *not* new kernel features, and
+conservative about anything touching memory/scheduler/interrupt code).
+What changed, in full:
+
+- **Item 2 (95 clippy `--all-targets` warnings): fixed.** 0 warnings now.
+  See item 2 above for the breakdown of mechanical `cargo clippy --fix`
+  auto-fixes vs. the 8 sites that needed a one-line hand fix vs. the 4
+  `module_inception` sites resolved with a documented `#[allow]` instead
+  of a large re-indent.
+- **Item 4 (`.unwrap()` density): corrected and partially fixed.** The
+  original claim that 9 named `lib.rs`/`kernel.rs` files had "real
+  library-code unwraps" was checked and found wrong for 8 of them (all
+  test-only); the 2 real unwraps that did exist (`crates/kernel/src/kernel.rs`,
+  both `SystemTime::now().duration_since(UNIX_EPOCH).unwrap()`) are fixed,
+  along with 4 more of the same pattern found in
+  `crates/objectmodel/src/capabilities.rs` and `lifecycle.rs` while
+  investigating. See item 4 above for full detail, including the fail-open
+  bug that a naive `unwrap_or_default()` swap would have introduced in
+  `CapabilityGrant::is_valid()` (caught and avoided — fixed with
+  `.unwrap_or(false)` instead, which fails secure).
+- **Items 3 and 5 (unsafe `# Safety` docs, no `cargo audit`/fuzzing):
+  left untouched**, per this pass's own conservatism rule — item 3 is
+  `crates/memory`'s raw-pointer allocator code (explicitly in the
+  kernel-safety-conservative category this pass was told to avoid unless
+  a fix is truly trivial; writing correct `# Safety` invariants for
+  pointer arithmetic is not), and item 5 needs network access this
+  environment doesn't have to validate.
+- **Tests**: `cargo test --workspace` — 769 passed, 0 failed (up from 768;
+  1 new regression test, `kernel::tests::uptime_does_not_panic_when_boot_time_is_in_the_future`,
+  added and confirmed to fail against the pre-fix code and pass against
+  the fix). `cargo clippy --workspace -- -D warnings` and
+  `cargo clippy --workspace --all-targets` both clean. `cargo fmt --check`
+  clean.
+- **Not touched**: no public API signatures changed (`SherKernel::uptime()`
+  keeps returning bare `u64`, not `Result<u64>`, specifically so sibling
+  repos consuming this crate as a path dependency don't need to change);
+  no changes to `crates/memory`, `crates/scheduler`, or `crates/interrupt`
+  (the explicitly flagged safety-critical crates) beyond what clippy's
+  mechanical `--fix` touched in `crates/memory/benches/allocator_bench.rs`
+  (a single `black_box`/`unit_arg` reshuffle in bench-only code, verified
+  to still compile and run correctly).

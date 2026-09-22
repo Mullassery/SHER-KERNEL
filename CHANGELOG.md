@@ -14,6 +14,43 @@ tagged.
 
 ## [Unreleased]
 
+### Fixed
+- `crates/kernel/src/kernel.rs`: `SherKernel::new()` and `::uptime()` both
+  called `SystemTime::now().duration_since(UNIX_EPOCH).unwrap()`, which
+  panics if the system clock reads before the epoch; `uptime()` additionally
+  did plain `u64` subtraction (`current_time - self.boot_time`), which
+  panics on overflow if the clock ever reads behind `boot_time` (e.g. after
+  a backwards clock adjustment). `new()` now propagates the clock error
+  through its existing `Result`; `uptime()` uses `.unwrap_or_default()` and
+  `saturating_sub` instead (its `u64` return type is unchanged, since other
+  SHER-OS repos consume this crate as a path dependency). Added
+  `kernel::tests::uptime_does_not_panic_when_boot_time_is_in_the_future`,
+  confirmed to fail against the pre-fix code and pass against the fix.
+- The same `duration_since(UNIX_EPOCH).unwrap()` pattern in
+  `crates/objectmodel/src/capabilities.rs` (`CapabilityGrant::new`,
+  `::is_valid`) and `crates/objectmodel/src/lifecycle.rs`
+  (`Lifecycle::default`/`start`/`stop`) — foundational types used across the
+  whole workspace. Fixed with `.unwrap_or_default()` where the timestamp is
+  plain bookkeeping, and with `.map(...).unwrap_or(false)` in
+  `CapabilityGrant::is_valid()` specifically, so a clock-read failure fails
+  secure (reads as "expired") rather than fail-open or panicking.
+- `cargo clippy --workspace --all-targets` (the non-CI-enforced, broader
+  variant of the clippy gate) went from 95 warnings to 0. 87 were mechanical
+  (`cargo clippy --fix`: `clone_on_copy` on `Copy`-deriving types, `len_zero`,
+  `unnecessary_cast`, `identity_op`, `redundant_pattern_matching`,
+  `unit_arg`, `bool_comparison`); 4 more `field_reassign_with_default` and
+  1 unnecessary-parens site were one-line hand fixes; the remaining 4
+  `module_inception` warnings (`crates/{device_manager,driver_runtime,ai,lki}/src/tests.rs`,
+  each nesting `mod tests { ... }` one level too deep) were resolved with a
+  documented `#[allow(clippy::module_inception)]` rather than re-indenting
+  ~900-1200 lines per file for a cosmetic, test-behavior-neutral nesting
+  quirk. All changes confined to `#[cfg(test)]`/bench code; no library or
+  binary code touched by this cleanup. `cargo test --workspace`: 769
+  passed, 0 failed (up from 768 — the new kernel-uptime regression test).
+  See `ROADMAP_HONEST.md` for full detail and what was deliberately left
+  alone (unsafe-code `# Safety` docs, `cargo audit`/fuzzing CI — both still
+  flagged as real gaps, not silently fixed).
+
 ### Changed
 - Documentation-honesty pass (this pass): fixed `Cargo.lock` being
   gitignored/untracked despite this workspace producing a real binary
