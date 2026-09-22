@@ -162,8 +162,10 @@ mod tests {
 
     #[tokio::test]
     async fn battery_awareness_respects_config_flag() {
-        let mut config = AroConfig::default();
-        config.battery_aware = false;
+        let config = AroConfig {
+            battery_aware: false,
+            ..AroConfig::default()
+        };
         let mut aro = AdaptiveResourceOrchestrator::initialize(config)
             .await
             .unwrap();

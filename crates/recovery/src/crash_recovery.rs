@@ -194,7 +194,7 @@ mod tests {
         let mut manager = CrashRecoveryManager::new(policy);
         let driver = ObjectId::new();
 
-        let _ = manager.record_crash(driver.clone());
+        let _ = manager.record_crash(driver);
         assert_eq!(manager.get_metrics(&driver).unwrap().crash_count, 1);
     }
 
@@ -213,16 +213,18 @@ mod tests {
 
     #[test]
     fn test_quarantine_threshold() {
-        let mut policy = RecoveryPolicy::default();
-        policy.quarantine_threshold_crashes = 2;
+        let policy = RecoveryPolicy {
+            quarantine_threshold_crashes: 2,
+            ..RecoveryPolicy::default()
+        };
 
         let mut manager = CrashRecoveryManager::new(policy);
         let driver = ObjectId::new();
 
-        let _ = manager.record_crash(driver.clone());
+        let _ = manager.record_crash(driver);
         assert!(!manager.is_quarantined(&driver));
 
-        let _ = manager.record_crash(driver.clone());
+        let _ = manager.record_crash(driver);
         assert_eq!(manager.recovery_state, RecoveryState::Degraded);
     }
 
@@ -233,7 +235,7 @@ mod tests {
         let driver = ObjectId::new();
 
         for _ in 0..5 {
-            let _ = manager.record_recovery_attempt(driver.clone());
+            let _ = manager.record_recovery_attempt(driver);
         }
 
         assert!(!manager.should_recover(&driver));
@@ -257,7 +259,7 @@ mod tests {
         let mut manager = CrashRecoveryManager::new(policy);
         let driver = ObjectId::new();
 
-        let _ = manager.record_crash(driver.clone());
+        let _ = manager.record_crash(driver);
         assert!(manager.get_metrics(&driver).is_some());
 
         let _ = manager.reset_metrics(&driver);

@@ -142,7 +142,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let result = stack.get_compositor_mut().connect_client(client);
         assert!(result.is_ok());
         assert_eq!(stack.get_compositor().client_count(), 1);
@@ -163,7 +163,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = stack.get_compositor_mut().connect_client(client);
 
         let surface = stack
@@ -233,7 +233,7 @@ mod tests {
             current_mode: None,
         };
 
-        let connector_id = connector.id.clone();
+        let connector_id = connector.id;
         let _ = stack.get_gpu_driver_mut().register_connector(connector);
 
         let result = stack.get_gpu_driver_mut().set_mode(&connector_id, mode);
@@ -274,13 +274,13 @@ mod tests {
 
         let _ = stack
             .get_device_manager_mut()
-            .register_gpu_device(gpu_id.clone(), "GPU".to_string());
+            .register_gpu_device(gpu_id, "GPU".to_string());
         let _ = stack
             .get_device_manager_mut()
-            .register_audio_device(audio_id.clone(), "Audio".to_string());
+            .register_audio_device(audio_id, "Audio".to_string());
         let _ = stack
             .get_device_manager_mut()
-            .register_input_device(input_id.clone(), "Input".to_string());
+            .register_input_device(input_id, "Input".to_string());
 
         assert_eq!(stack.get_device_manager().get_total_device_count(), 3);
         assert!(stack.get_device_manager().all_devices_healthy());
@@ -297,7 +297,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = stack.get_compositor_mut().connect_client(client);
 
         let surface = stack
@@ -306,7 +306,7 @@ mod tests {
             .unwrap();
 
         let event = PointerEvent {
-            surface_id: Some(surface.id.clone()),
+            surface_id: Some(surface.id),
             event_type: PointerEventType::Enter,
             x: 100,
             y: 200,
@@ -338,8 +338,8 @@ mod tests {
             is_connected: false,
         };
 
-        let app1_id = app1.id.clone();
-        let app2_id = app2.id.clone();
+        let app1_id = app1.id;
+        let app2_id = app2.id;
 
         let _ = stack.get_compositor_mut().connect_client(app1);
         let _ = stack.get_compositor_mut().connect_client(app2);
@@ -359,7 +359,7 @@ mod tests {
         let device_id = ObjectId::new();
         let _ = stack
             .get_device_manager_mut()
-            .register_gpu_device(device_id.clone(), "GPU".to_string());
+            .register_gpu_device(device_id, "GPU".to_string());
 
         let _ = stack
             .get_device_manager_mut()
@@ -383,7 +383,7 @@ mod tests {
             .unwrap();
         assert!(!device.is_healthy);
 
-        assert!(stack.get_device_manager().all_devices_healthy() == false);
+        assert!(!stack.get_device_manager().all_devices_healthy());
     }
 
     #[test]
@@ -399,7 +399,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = stack.get_compositor_mut().connect_client(client);
         let _ = stack
             .get_compositor_mut()
@@ -425,7 +425,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         assert!(stack.get_compositor_mut().connect_client(client).is_ok());
 
         let surface = stack
@@ -467,7 +467,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         assert!(stack.get_compositor_mut().connect_client(client).is_ok());
 
         let surface = stack
@@ -506,7 +506,7 @@ mod tests {
             is_connected: false,
         };
 
-        let app_id = gtk_app.id.clone();
+        let app_id = gtk_app.id;
         assert!(stack.get_compositor_mut().connect_client(gtk_app).is_ok());
 
         let main_surface = stack.get_compositor_mut().create_surface(&app_id).unwrap();
@@ -545,7 +545,7 @@ mod tests {
             is_connected: false,
         };
 
-        let browser_id = browser.id.clone();
+        let browser_id = browser.id;
         assert!(stack.get_compositor_mut().connect_client(browser).is_ok());
 
         let rendering_surface = stack
@@ -592,7 +592,7 @@ mod tests {
             is_active: false,
         };
 
-        let speaker_id = speaker.id.clone();
+        let speaker_id = speaker.id;
         assert!(stack
             .get_audio_driver_mut()
             .register_device(speaker)
@@ -648,8 +648,8 @@ mod tests {
             max_touches: 0,
         };
 
-        let keyboard_id = keyboard.id.clone();
-        let mouse_id = mouse.id.clone();
+        let keyboard_id = keyboard.id;
+        let mouse_id = mouse.id;
 
         assert!(stack
             .get_input_driver_mut()
@@ -705,8 +705,8 @@ mod tests {
             current_mode: None,
         };
 
-        let hdmi_id = hdmi.id.clone();
-        let dp_id = dp.id.clone();
+        let hdmi_id = hdmi.id;
+        let dp_id = dp.id;
 
         assert!(stack.get_gpu_driver_mut().register_connector(hdmi).is_ok());
         assert!(stack.get_gpu_driver_mut().register_connector(dp).is_ok());
@@ -746,9 +746,9 @@ mod tests {
             is_connected: false,
         };
 
-        let app1_id = app1.id.clone();
-        let app2_id = app2.id.clone();
-        let app3_id = app3.id.clone();
+        let app1_id = app1.id;
+        let app2_id = app2.id;
+        let app3_id = app3.id;
 
         assert!(stack.get_compositor_mut().connect_client(app1).is_ok());
         assert!(stack.get_compositor_mut().connect_client(app2).is_ok());
@@ -788,7 +788,7 @@ mod tests {
             is_connected: false,
         };
 
-        let browser_id = browser.id.clone();
+        let browser_id = browser.id;
         assert!(stack.get_compositor_mut().connect_client(browser).is_ok());
 
         let surface = stack
@@ -812,7 +812,7 @@ mod tests {
             .is_ok());
 
         let pointer_event = PointerEvent {
-            surface_id: Some(surface.id.clone()),
+            surface_id: Some(surface.id),
             event_type: PointerEventType::Motion,
             x: 960,
             y: 540,

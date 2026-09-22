@@ -96,7 +96,8 @@ fn benchmark_alloc_free_cycle(c: &mut Criterion) {
                 let layout = Layout::from_size_align(size, 8).unwrap();
                 unsafe {
                     let ptr = black_box(alloc(layout));
-                    black_box(dealloc(ptr, layout));
+                    dealloc(ptr, layout);
+                    black_box(());
                 }
             })
         });

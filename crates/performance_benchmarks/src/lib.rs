@@ -285,7 +285,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = stack.get_compositor_mut().connect_client(client);
 
         let measurement = benchmark.measure_operation("surface_creation", 5, || {
@@ -418,7 +418,7 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = stack.get_compositor_mut().connect_client(client);
         let surface = stack
             .get_compositor_mut()
@@ -427,7 +427,7 @@ mod tests {
 
         let measurement = benchmark.measure_operation("pointer_event_routing", 100, || {
             let event = PointerEvent {
-                surface_id: Some(surface.id.clone()),
+                surface_id: Some(surface.id),
                 event_type: PointerEventType::Motion,
                 x: 100,
                 y: 200,
@@ -456,15 +456,15 @@ mod tests {
             is_connected: false,
         };
 
-        let client_id = client.id.clone();
+        let client_id = client.id;
         let _ = stack.get_compositor_mut().connect_client(client);
 
         let measurement =
             benchmark.measure_throughput("surface_creation", Duration::from_millis(100), || {
-                match stack.get_compositor_mut().create_surface(&client_id) {
-                    Ok(_) => true,
-                    Err(_) => false,
-                }
+                stack
+                    .get_compositor_mut()
+                    .create_surface(&client_id)
+                    .is_ok()
             });
 
         assert_eq!(measurement.operation, "surface_creation");

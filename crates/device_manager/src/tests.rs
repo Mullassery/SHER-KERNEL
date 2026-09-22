@@ -1,7 +1,14 @@
 // SHER Device Manager: Comprehensive Unit Tests
 // Coverage: Discovery, Registry, Policy, Matching
 
+// `lib.rs` already declares `#[cfg(test)] mod tests;` pointing at this file,
+// so this inner `mod tests { ... }` wrapper nests the module as
+// `tests::tests` — redundant, but harmless (`cargo test` finds `#[test]`
+// fns regardless of nesting depth). Left as a single `#[allow]` rather than
+// re-indenting this whole file, which would make an otherwise no-op cleanup
+// commit much larger to review for no behavioral change.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::*;
     use sher_common::ObjectId;
@@ -549,8 +556,8 @@ mod tests {
         }
 
         assert!(registry.get_device_count() > 0);
-        assert!(registry.find_by_type("pci").len() > 0);
-        assert!(registry.find_by_type("usb").len() > 0);
+        assert!(!registry.find_by_type("pci").is_empty());
+        assert!(!registry.find_by_type("usb").is_empty());
     }
 
     #[test]

@@ -509,7 +509,7 @@ mod tests {
         let _ = compositor.connect_client(client);
 
         let surface = compositor.create_surface(&client_id).unwrap();
-        let _ = compositor.set_focus(Some(surface.id.clone()));
+        let _ = compositor.set_focus(Some(surface.id));
 
         assert_eq!(compositor.get_focused_surface(), Some(surface.id));
     }

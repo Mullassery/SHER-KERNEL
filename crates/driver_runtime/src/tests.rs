@@ -1,6 +1,13 @@
 // SHER Driver Runtime: Comprehensive Tests
 
+// `lib.rs` already declares `#[cfg(test)] mod tests;` pointing at this file,
+// so this inner `mod tests { ... }` wrapper nests the module as
+// `tests::tests` — redundant, but harmless (`cargo test` finds `#[test]`
+// fns regardless of nesting depth). Left as a single `#[allow]` rather than
+// re-indenting this whole file, which would make an otherwise no-op cleanup
+// commit much larger to review for no behavioral change.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::*;
     use sher_common::ObjectId;
@@ -356,7 +363,7 @@ mod tests {
     fn test_translation_list_mappings() {
         let engine = TranslationEngine::new();
         let mappings = engine.list_mappings();
-        assert!(mappings.len() > 0);
+        assert!(!mappings.is_empty());
     }
 
     #[test]
@@ -582,7 +589,7 @@ mod tests {
 
         let log = manager.get_syscall_log(driver_id);
         assert!(log.is_some());
-        assert!(log.unwrap().len() > 0);
+        assert!(!log.unwrap().is_empty());
     }
 
     #[test]

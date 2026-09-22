@@ -198,7 +198,7 @@ mod tests {
         let mut watchdog = Watchdog::new(1000);
         let driver = ObjectId::new();
 
-        let _ = watchdog.register_heartbeat(driver.clone());
+        let _ = watchdog.register_heartbeat(driver);
         assert!(watchdog.get_status(&driver).is_some());
     }
 
@@ -207,7 +207,7 @@ mod tests {
         let mut watchdog = Watchdog::new(1000);
         let driver = ObjectId::new();
 
-        let _ = watchdog.register_heartbeat(driver.clone());
+        let _ = watchdog.register_heartbeat(driver);
         let _ = watchdog.record_heartbeat(&driver);
 
         let status = watchdog.check_health(&driver);
@@ -219,7 +219,7 @@ mod tests {
         let mut watchdog = Watchdog::new(100);
         let driver = ObjectId::new();
 
-        let _ = watchdog.register_heartbeat(driver.clone());
+        let _ = watchdog.register_heartbeat(driver);
         std::thread::sleep(Duration::from_millis(150));
 
         let status = watchdog.check_health(&driver);
@@ -232,8 +232,8 @@ mod tests {
         let driver1 = ObjectId::new();
         let _driver2 = ObjectId::new();
 
-        let _ = watchdog.register_heartbeat(driver1.clone());
-        let _ = watchdog.register_heartbeat(_driver2.clone());
+        let _ = watchdog.register_heartbeat(driver1);
+        let _ = watchdog.register_heartbeat(_driver2);
 
         let _ = watchdog.record_heartbeat(&driver1);
 
@@ -246,7 +246,7 @@ mod tests {
         let mut watchdog = Watchdog::new(1000);
         let driver = ObjectId::new();
 
-        let _ = watchdog.register_heartbeat(driver.clone());
+        let _ = watchdog.register_heartbeat(driver);
         let _ = watchdog.unregister_driver(&driver);
 
         assert!(watchdog.get_status(&driver).is_none());

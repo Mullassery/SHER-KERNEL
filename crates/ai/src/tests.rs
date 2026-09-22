@@ -1,6 +1,13 @@
 // SHER AI Services: Comprehensive Tests
 
+// `lib.rs` already declares `#[cfg(test)] mod tests;` pointing at this file,
+// so this inner `mod tests { ... }` wrapper nests the module as
+// `tests::tests` — redundant, but harmless (`cargo test` finds `#[test]`
+// fns regardless of nesting depth). Left as a single `#[allow]` rather than
+// re-indenting this whole file, which would make an otherwise no-op cleanup
+// commit much larger to review for no behavioral change.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::adaptive_scheduling::*;
     use crate::anomaly_detection::*;
@@ -81,7 +88,7 @@ mod tests {
         // Record 150 concurrent DMA operations (exceeds threshold of 100)
         // Use 1MB per op to stay under 1GB/s threshold (150 * 1MB = 150MB < 1GB)
         for i in 0..150 {
-            detector.record_dma(driver_id, 1 * 1024 * 1024, true, i);
+            detector.record_dma(driver_id, 1024 * 1024, true, i);
         }
 
         let anomaly = detector.detect_abuse(driver_id, 150);
@@ -104,7 +111,7 @@ mod tests {
 
         // Same concurrency breach as above, but read-dominated traffic.
         for i in 0..150 {
-            detector.record_dma(driver_id, 1 * 1024 * 1024, false, i);
+            detector.record_dma(driver_id, 1024 * 1024, false, i);
         }
 
         let anomaly = detector.detect_abuse(driver_id, 150).unwrap();
@@ -154,7 +161,7 @@ mod tests {
         engine.record_memory_state(driver_id, 6000 * 1024 * 1024, 10_000);
 
         let memory_anomalies = engine.get_anomalies_by_type(AnomalyType::MemoryLeak);
-        assert!(memory_anomalies.len() > 0);
+        assert!(!memory_anomalies.is_empty());
         assert_eq!(memory_anomalies[0].anomaly_type, AnomalyType::MemoryLeak);
     }
 
@@ -218,7 +225,7 @@ mod tests {
                 cpu_usage_percent: 50.0 + (i as f64 * 5.0),
                 io_ops_per_sec: 1000.0,
                 network_bandwidth_mbps: 10.0,
-                timestamp_ms: (i as u64 + 1) * 1000,
+                timestamp_ms: (i + 1) * 1000,
             };
 
             allocator.update_profile(driver_id, &observation);

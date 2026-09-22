@@ -357,7 +357,7 @@ mod tests {
             max_touches: 0,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.activate_device(&device_id);

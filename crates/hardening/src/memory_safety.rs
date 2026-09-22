@@ -208,7 +208,7 @@ mod tests {
         let mut validator = MemorySafetyValidator::new();
         let id = ObjectId::new();
 
-        let result = validator.register_allocation(id.clone(), 256, 8);
+        let result = validator.register_allocation(id, 256, 8);
         assert!(result.is_ok());
     }
 
@@ -226,7 +226,7 @@ mod tests {
         let mut validator = MemorySafetyValidator::new();
         let id = ObjectId::new();
 
-        let _ = validator.register_allocation(id.clone(), 256, 8);
+        let _ = validator.register_allocation(id, 256, 8);
         let _ = validator.record_free(&id);
         let result = validator.record_use(&id);
 
@@ -239,7 +239,7 @@ mod tests {
         let mut validator = MemorySafetyValidator::new();
         let id = ObjectId::new();
 
-        let _ = validator.register_allocation(id.clone(), 256, 8);
+        let _ = validator.register_allocation(id, 256, 8);
         let _ = validator.record_free(&id);
         let result = validator.record_free(&id);
 
@@ -252,7 +252,7 @@ mod tests {
         let mut validator = MemorySafetyValidator::new();
         let id = ObjectId::new();
 
-        let _ = validator.register_allocation(id.clone(), 256, 8);
+        let _ = validator.register_allocation(id, 256, 8);
         let result = validator.check_bounds(&id, 200, 100);
 
         assert!(result.is_err());

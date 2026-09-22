@@ -234,7 +234,7 @@ mod tests {
         let _ = hal.register_driver(DeviceType::Gpu, driver);
 
         let devices = hal.probe_devices().unwrap();
-        let device_id = devices[0].id.clone();
+        let device_id = devices[0].id;
 
         let retrieved = hal.get_device(&device_id);
         assert!(retrieved.is_some());
@@ -272,7 +272,7 @@ mod tests {
         let _ = hal.register_driver(DeviceType::Gpu, driver);
 
         let devices = hal.probe_devices().unwrap();
-        let device_id = devices[0].id.clone();
+        let device_id = devices[0].id;
 
         let value = hal.read_register(&device_id, 0);
         assert!(value.is_ok());

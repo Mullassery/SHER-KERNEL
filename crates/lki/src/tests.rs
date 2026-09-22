@@ -1,6 +1,13 @@
 // SHER LKI: Comprehensive Tests
 
+// `lib.rs` already declares `#[cfg(test)] mod tests;` pointing at this file,
+// so this inner `mod tests { ... }` wrapper nests the module as
+// `tests::tests` — redundant, but harmless (`cargo test` finds `#[test]`
+// fns regardless of nesting depth). Left as a single `#[allow]` rather than
+// re-indenting this whole file, which would make an otherwise no-op cleanup
+// commit much larger to review for no behavioral change.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::audit::{AuditEntry, AuditFilter, AuditLevel, AuditLog};
     use crate::device_translation::{
@@ -239,7 +246,7 @@ mod tests {
         allocator.kmalloc(driver_id, 1000, 0).ok();
         assert_eq!(allocator.peak_usage(), 2000);
 
-        let addr1 = allocator.allocations.keys().next().unwrap().clone();
+        let addr1 = *allocator.allocations.keys().next().unwrap();
         allocator.kfree(addr1).ok();
         assert_eq!(allocator.current_usage(), 1000);
         assert_eq!(allocator.peak_usage(), 2000);
@@ -544,7 +551,7 @@ mod tests {
         let device = PciDevice::new(pci_id, 5, 10, 2);
 
         let bdf = device.bdf();
-        let expected = ((5 as u32) << 16) | ((10 as u32) << 11) | 2;
+        let expected = (5_u32 << 16) | (10_u32 << 11) | 2;
         assert_eq!(bdf, expected);
     }
 
@@ -733,7 +740,7 @@ mod tests {
         let pci_id = PciDeviceId::new(0x8086, 0x1234);
         manager.register_pci_device(pci_id, 0, 15, 0).ok();
 
-        let bdf = ((0 as u32) << 16) | ((15 as u32) << 11) | 0;
+        let bdf = 15_u32 << 11;
         manager.enable_device(bdf).ok();
 
         if let Some(device) = manager.get_device_by_bdf(bdf) {

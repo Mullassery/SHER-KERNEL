@@ -350,7 +350,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.set_sample_rate(&device_id, 48000);
@@ -375,7 +375,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.set_sample_rate(&device_id, 96000);
@@ -397,7 +397,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.set_format(&device_id, AudioFormat::S32LE);
@@ -422,7 +422,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.allocate_buffer(&device_id, 4096);
@@ -447,11 +447,11 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let buffer = driver.allocate_buffer(&device_id, 4096).unwrap();
-        let buffer_id = buffer.id.clone();
+        let buffer_id = buffer.id;
 
         let write_result = driver.write_buffer(&buffer_id, 1024);
         assert!(write_result.is_ok());
@@ -475,7 +475,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.set_volume(&device_id, 80, 75);
@@ -501,7 +501,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.set_volume(&device_id, 150, 50);
@@ -523,7 +523,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         let result = driver.set_mute(&device_id, true);
@@ -548,7 +548,7 @@ mod tests {
             is_active: false,
         };
 
-        let device_id = device.id.clone();
+        let device_id = device.id;
         let _ = driver.register_device(device);
 
         assert_eq!(driver.get_active_stream_count(), 0);

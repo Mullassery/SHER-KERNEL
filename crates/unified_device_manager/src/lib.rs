@@ -246,7 +246,7 @@ mod tests {
         let mut manager = UnifiedDeviceManager::new();
         let device_id = ObjectId::new();
 
-        let result = manager.register_gpu_device(device_id.clone(), "NVIDIA RTX".to_string());
+        let result = manager.register_gpu_device(device_id, "NVIDIA RTX".to_string());
         assert!(result.is_ok());
         assert_eq!(manager.get_gpu_device_count(), 1);
 
@@ -259,7 +259,7 @@ mod tests {
         let mut manager = UnifiedDeviceManager::new();
         let device_id = ObjectId::new();
 
-        let result = manager.register_audio_device(device_id.clone(), "Speakers".to_string());
+        let result = manager.register_audio_device(device_id, "Speakers".to_string());
         assert!(result.is_ok());
         assert_eq!(manager.get_audio_device_count(), 1);
 
@@ -272,7 +272,7 @@ mod tests {
         let mut manager = UnifiedDeviceManager::new();
         let device_id = ObjectId::new();
 
-        let result = manager.register_input_device(device_id.clone(), "Keyboard".to_string());
+        let result = manager.register_input_device(device_id, "Keyboard".to_string());
         assert!(result.is_ok());
         assert_eq!(manager.get_input_device_count(), 1);
 
@@ -299,7 +299,7 @@ mod tests {
         let mut manager = UnifiedDeviceManager::new();
         let device_id = ObjectId::new();
 
-        let _ = manager.register_gpu_device(device_id.clone(), "GPU".to_string());
+        let _ = manager.register_gpu_device(device_id, "GPU".to_string());
         assert_eq!(manager.get_healthy_device_count(), 1);
 
         let _ = manager.report_device_error(&device_id, "Test error".to_string());
@@ -314,7 +314,7 @@ mod tests {
         let mut manager = UnifiedDeviceManager::new();
         let device_id = ObjectId::new();
 
-        let _ = manager.register_gpu_device(device_id.clone(), "GPU".to_string());
+        let _ = manager.register_gpu_device(device_id, "GPU".to_string());
 
         for _ in 0..4 {
             let _ = manager.report_device_error(&device_id, "Error".to_string());
@@ -330,7 +330,7 @@ mod tests {
         let mut manager = UnifiedDeviceManager::new();
         let device_id = ObjectId::new();
 
-        let _ = manager.register_gpu_device(device_id.clone(), "GPU".to_string());
+        let _ = manager.register_gpu_device(device_id, "GPU".to_string());
         let _ = manager.report_device_error(&device_id, "Error".to_string());
 
         let result = manager.mark_device_healthy(&device_id);
@@ -367,8 +367,8 @@ mod tests {
         let gpu_id = ObjectId::new();
         let audio_id = ObjectId::new();
 
-        let _ = manager.register_gpu_device(gpu_id.clone(), "GPU".to_string());
-        let _ = manager.register_audio_device(audio_id.clone(), "Audio".to_string());
+        let _ = manager.register_gpu_device(gpu_id, "GPU".to_string());
+        let _ = manager.register_audio_device(audio_id, "Audio".to_string());
 
         assert!(manager.all_devices_healthy());
 

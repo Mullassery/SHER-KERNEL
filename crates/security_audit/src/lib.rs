@@ -406,7 +406,7 @@ mod tests {
         let subject = ObjectId::new();
         let cap = "read_file".to_string();
 
-        cv.grant_capability(subject.clone(), cap.clone(), 1000);
+        cv.grant_capability(subject, cap.clone(), 1000);
 
         assert!(cv.has_capability(&subject, "read_file", 500));
         assert!(!cv.has_capability(&subject, "read_file", 1001));
@@ -417,7 +417,7 @@ mod tests {
         let mut cv = CapabilityValidator::new();
         let subject = ObjectId::new();
 
-        cv.grant_capability(subject.clone(), "read_file".to_string(), 1000);
+        cv.grant_capability(subject, "read_file".to_string(), 1000);
         assert!(cv.has_capability(&subject, "read_file", 500));
 
         let revoked = cv.revoke_capability(&subject, "read_file");
@@ -431,8 +431,8 @@ mod tests {
         let subj1 = ObjectId::new();
         let subj2 = ObjectId::new();
 
-        cv.grant_capability(subj1.clone(), "cap1".to_string(), 500);
-        cv.grant_capability(subj2.clone(), "cap2".to_string(), 1500);
+        cv.grant_capability(subj1, "cap1".to_string(), 500);
+        cv.grant_capability(subj2, "cap2".to_string(), 1500);
 
         let expired = cv.expire_capabilities(1000);
         assert_eq!(expired, 1);
