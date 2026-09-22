@@ -25,9 +25,13 @@ pub struct Lifecycle {
 
 impl Default for Lifecycle {
     fn default() -> Self {
+        // `duration_since` only errs if the system clock reads before
+        // UNIX_EPOCH; these are plain bookkeeping timestamps (not used in
+        // any security/expiry comparison), so fall back to 0 instead of
+        // panicking on a misconfigured clock.
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         Self {
@@ -45,7 +49,7 @@ impl Lifecycle {
     pub fn start(&mut self) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
         self.state = State::Running;
         self.started_at = Some(now);
@@ -54,7 +58,7 @@ impl Lifecycle {
     pub fn stop(&mut self) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
         self.state = State::Stopped;
         self.stopped_at = Some(now);

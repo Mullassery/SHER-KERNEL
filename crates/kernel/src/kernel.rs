@@ -30,7 +30,9 @@ impl SherKernel {
     pub fn new(config: KernelConfig) -> Result<Self> {
         let boot_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| {
+                sher_common::Error::Unknown(format!("system clock is set before UNIX_EPOCH: {e}"))
+            })?
             .as_secs();
 
         Ok(Self {
@@ -84,11 +86,16 @@ impl SherKernel {
     }
 
     pub fn uptime(&self) -> u64 {
+        // `duration_since` only errs if the system clock reads before
+        // UNIX_EPOCH; fall back to 0 elapsed rather than panicking on a
+        // misconfigured clock. Use `saturating_sub` for the same reason:
+        // if the clock has since moved backwards past `boot_time`, report
+        // 0 uptime instead of underflowing.
         let current_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
-        current_time - self.boot_time
+        current_time.saturating_sub(self.boot_time)
     }
 
     /// Register a device with the kernel's device registry, auditing the
@@ -151,8 +158,10 @@ mod tests {
 
     #[tokio::test]
     async fn initialize_skips_ai_services_when_disabled() {
-        let mut config = KernelConfig::default();
-        config.enable_ai_services = false;
+        let config = KernelConfig {
+            enable_ai_services: false,
+            ..KernelConfig::default()
+        };
         let mut kernel = SherKernel::new(config).unwrap();
         kernel.initialize().await.unwrap();
         assert!(!kernel.status().ai_services_active);
@@ -173,5 +182,18 @@ mod tests {
         let status = kernel.status();
         assert_eq!(status.memory_usage_percent, 0.0);
         assert_eq!(status.registered_devices, 0);
+    }
+
+    #[test]
+    fn uptime_does_not_panic_when_boot_time_is_in_the_future() {
+        // Before the fix, `uptime()` computed `current_time - self.boot_time`
+        // with plain `u64` subtraction, which panics on overflow (debug
+        // builds) if `boot_time` is ever ahead of "now" (e.g. clock skew
+        // adjusted the system clock backwards after boot). Simulate that by
+        // reaching into the private field directly (this test lives inside
+        // the `kernel` module via `use super::*`).
+        let mut kernel = SherKernel::new(KernelConfig::default()).unwrap();
+        kernel.boot_time = u64::MAX;
+        assert_eq!(kernel.uptime(), 0);
     }
 }

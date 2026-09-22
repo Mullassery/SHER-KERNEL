@@ -12,9 +12,14 @@ pub struct CapabilityGrant {
 
 impl CapabilityGrant {
     pub fn new(capability: Capability, tier: PermissionTier) -> Self {
+        // `duration_since` only errs if the system clock reads before
+        // UNIX_EPOCH. Fail secure (per this crate's zero-trust model) with
+        // `now = 0` rather than panicking: a grant timestamped at the epoch
+        // will read as already-expired against any real subsequent clock
+        // reading, so this degrades to "deny access," not a crash.
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         let expires_at = match tier {
@@ -34,13 +39,16 @@ impl CapabilityGrant {
 
     pub fn is_valid(&self) -> bool {
         match self.expires_at {
-            Some(expiry) => {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
-                now < expiry
-            }
+            // `duration_since` only errs if the system clock reads before
+            // UNIX_EPOCH. Unlike `new()`, defaulting `now` to 0 here would
+            // be fail-*open* (0 < any positive `expiry` is always true, so
+            // every grant would read as valid during a clock glitch).
+            // Instead, fail secure: treat an unreadable clock as "expired"
+            // rather than panicking or granting access.
+            Some(expiry) => SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs() < expiry)
+                .unwrap_or(false),
             None => true,
         }
     }
