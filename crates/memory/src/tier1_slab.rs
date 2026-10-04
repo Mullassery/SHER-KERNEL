@@ -168,38 +168,68 @@ impl SlabPage {
 
     /// Deallocate an object back to this slab.
     ///
+    /// `ptr` is only accepted if it falls within this slab's address range;
+    /// pointers outside that range are rejected and `false` is returned
+    /// rather than dereferenced or used for pointer arithmetic — this
+    /// function is called from [`SocketSlabCache::deallocate`] in a loop
+    /// that probes every slab it owns, including ones the pointer was *not*
+    /// allocated from, so it must tolerate pointers from unrelated
+    /// allocations without invoking undefined behavior.
+    ///
+    /// Containment is checked by comparing pointer *addresses* as `usize`
+    /// (never by calling [`<*mut u8>::offset_from`], whose documented
+    /// precondition requires both pointers to be derived from the same
+    /// allocated object — calling it on a pointer from a different slab's
+    /// allocation is itself undefined behavior regardless of what the
+    /// result is used for). This was previously implemented with
+    /// `offset_from` and confirmed to be real, triggerable UB via
+    /// `cargo +nightly miri test -p sher_memory`
+    /// (`ptr_offset_from called on two different pointers that are not both
+    /// derived from the same allocation`, from `stress_tests::test_stress_chaos`
+    /// exercising exactly this cross-slab probing path) — fixed here.
+    ///
     /// # Safety
-    /// `ptr` must have been returned by a previous call to
-    /// [`SlabPage::allocate`] on this same `SlabPage` (or be null-adjacent
-    /// enough to safely fail the containment check) — `offset_from`
-    /// requires both pointers to be derived from the same allocation.
+    /// `ptr` must either have been returned by a previous call to
+    /// [`SlabPage::allocate`] on *some* `SlabPage` (not necessarily this
+    /// one — the address-range check safely rejects foreign pointers that
+    /// fall outside this slab), or must not alias any live Rust reference,
+    /// so that the address comparison performed here cannot be mistaken for
+    /// a dereference. Double-freeing the same `ptr` on the slab that
+    /// actually owns it is still a logic bug the caller must avoid (it
+    /// would let a future `allocate()` call hand out the same address
+    /// twice), even though this function no longer invokes UB to detect
+    /// non-ownership.
     pub unsafe fn deallocate(&mut self, ptr: *mut u8) -> bool {
         if self.available_count >= self.total_objects {
             return false; // Slab is full
         }
 
         let obj_size = self.size_class.actual_size();
-        unsafe {
-            let offset = ptr.offset_from(self.vaddr);
+        let base = self.vaddr as usize;
+        let target = ptr as usize;
 
-            // Check if pointer is within this slab
-            if offset < 0 || offset as usize >= (self.total_objects * obj_size) {
-                return false;
-            }
+        // Address-only comparison: well-defined regardless of whether `ptr`
+        // and `self.vaddr` are derived from the same allocation.
+        if target < base {
+            return false;
+        }
 
-            let offset_usize = offset as usize;
-            if offset_usize < self.color_offset {
-                return false;
-            }
+        let offset = target - base;
+        if offset >= self.total_objects * obj_size {
+            return false;
+        }
 
-            let idx = (offset_usize - self.color_offset) / obj_size;
+        if offset < self.color_offset {
+            return false;
+        }
 
-            if idx < self.total_objects {
-                self.free_stack.push(idx);
-                self.available_count += 1;
-                self.allocated_count -= 1;
-                return true;
-            }
+        let idx = (offset - self.color_offset) / obj_size;
+
+        if idx < self.total_objects {
+            self.free_stack.push(idx);
+            self.available_count += 1;
+            self.allocated_count -= 1;
+            return true;
         }
         false
     }
@@ -584,6 +614,49 @@ mod tests {
 
         let ptr2 = cache.allocate().expect("Second allocation failed");
         assert_eq!(ptr, ptr2); // Should reuse same slot
+    }
+
+    /// Regression test for a real, Miri-confirmed UB bug:
+    /// `SocketSlabCache::deallocate` loops over every slab it owns and
+    /// calls `SlabPage::deallocate(ptr)` on each one until a match is
+    /// found, which means slabs *other than* the one `ptr` actually
+    /// belongs to get probed with a foreign pointer. The old
+    /// implementation used `ptr.offset_from(self.vaddr)` to test
+    /// containment, which is undefined behavior the instant `ptr` and
+    /// `self.vaddr` are not derived from the same allocation — regardless
+    /// of what the result is used for. `cargo +nightly miri test -p
+    /// sher_memory` caught this via `stress_tests::tests::test_stress_chaos`
+    /// (`ptr_offset_from called on two different pointers that are not
+    /// both derived from the same allocation`, at the old
+    /// `tier1_slab.rs:183`). This test deterministically forces the same
+    /// code path: fill the first slab completely (forcing a second slab to
+    /// be created), then deallocate a pointer that only exists in the
+    /// *second* slab while the *first* slab is still probed first.
+    #[test]
+    fn test_socket_slab_cache_deallocate_probes_non_owning_slab_first() {
+        let mut cache = SocketSlabCache::new(SizeClass::Bytes256);
+
+        // Fill the first slab completely (4096 / 256 = 16 objects).
+        let mut first_slab_ptrs = Vec::new();
+        for _ in 0..16 {
+            first_slab_ptrs.push(cache.allocate().expect("first-slab allocation failed"));
+        }
+        assert_eq!(cache.slab_count(), 1);
+
+        // This allocation can't fit in the full first slab, so it creates
+        // a second slab. `ptr` belongs only to that second slab.
+        let ptr = cache.allocate().expect("second-slab allocation failed");
+        assert_eq!(cache.slab_count(), 2);
+
+        // `deallocate` must probe the (still-partial, still-containing-free-
+        // space) first slab before reaching the second — exactly the
+        // cross-slab `offset_from` call that used to be UB under Miri.
+        assert!(unsafe { cache.deallocate(ptr) });
+
+        // First slab's objects are untouched and still live.
+        for p in first_slab_ptrs {
+            assert!(!p.is_null());
+        }
     }
 
     #[test]

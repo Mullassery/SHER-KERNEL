@@ -1099,10 +1099,16 @@ mod tests {
 
     #[test]
     fn test_permission_checker_caching() {
+        // Only *denied* outcomes are cached (see enforcement.rs doc comment
+        // on `PermissionChecker::check` for why granting is never cached:
+        // capability grants are time-bounded, so caching a grant could
+        // outlive its real expiry). This test uses `SecurityLevel::Strict`
+        // with no capability actually granted, so every check is denied
+        // and the denial *is* expected to be cached.
         let mut enforcer = SecurityEnforcer::new();
         let mut checker = PermissionChecker::new();
         let driver_id = ObjectId::new();
-        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Strict);
 
         let context_id = enforcer.register_driver(driver_id, policy).unwrap();
 
@@ -1110,15 +1116,77 @@ mod tests {
         let _ = checker.check(&mut enforcer, context_id, Capability::AllocateMemory, 1000);
 
         assert_eq!(checker.checks_performed, 2);
-        assert_eq!(checker.capability_cache.len(), 1); // Cached result
+        assert_eq!(checker.capability_cache.len(), 1); // Cached denial
+        assert_eq!(checker.checks_failed, 2);
+    }
+
+    #[test]
+    fn test_permission_checker_does_not_cache_granted_result() {
+        // Regression test for a real authorization-bypass bug: the
+        // previous `PermissionChecker::check` cached a *granted* result
+        // keyed only on `(context_id, capability)`, with no expiry
+        // attached to the cache entry. A capability that was valid when
+        // first checked, then expired, would still read as "granted" on
+        // every subsequent check because the stale cache entry was
+        // consulted before (and instead of) re-validating against the
+        // live, time-bounded `CapabilityGrant`.
+        //
+        // This test grants `AllocateMemory` with a short, explicit expiry,
+        // checks it successfully while still valid, then checks it again
+        // *after* that expiry has passed. The second check must be denied.
+        // Against the pre-fix code (which cached `true` unconditionally)
+        // this second assertion would fail: the cached grant would still
+        // read as valid despite `current_time_ms` being well past
+        // `expires_at_ms`.
+        let mut enforcer = SecurityEnforcer::new();
+        let mut checker = PermissionChecker::new();
+        let driver_id = ObjectId::new();
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Balanced);
+        let context_id = enforcer.register_driver(driver_id, policy).unwrap();
+
+        let mut grant =
+            CapabilityGrant::new(driver_id, Capability::AllocateMemory, PermissionTier::Low);
+        grant.granted_at_ms = 1_000;
+        grant.expires_at_ms = 2_000;
+
+        enforcer
+            .get_context_mut(context_id)
+            .unwrap()
+            .capability_manager
+            .grant(grant)
+            .unwrap();
+
+        // Valid at t=1_500 (before expiry) — granted.
+        let first = checker.check(&mut enforcer, context_id, Capability::AllocateMemory, 1_500);
+        assert!(first.is_ok());
+        // The granted outcome must not have been cached.
+        assert!(!checker
+            .capability_cache
+            .contains_key(&(context_id, Capability::AllocateMemory)));
+
+        // t=10_000 is well past expires_at_ms=2_000 — must now be denied,
+        // not served from a stale "granted" cache entry.
+        let second = checker.check(
+            &mut enforcer,
+            context_id,
+            Capability::AllocateMemory,
+            10_000,
+        );
+        assert!(
+            second.is_err(),
+            "expired capability must be denied, not served from a stale cache entry"
+        );
     }
 
     #[test]
     fn test_permission_checker_cache_clear() {
+        // Uses `Strict` with no capability granted (denied, hence cached —
+        // see `test_permission_checker_caching` for why only denials are
+        // cached) so there is a cache entry for `clear_cache` to remove.
         let mut enforcer = SecurityEnforcer::new();
         let mut checker = PermissionChecker::new();
         let driver_id = ObjectId::new();
-        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Unrestricted);
+        let policy = SecurityPolicy::new(driver_id, SecurityLevel::Strict);
 
         let context_id = enforcer.register_driver(driver_id, policy).unwrap();
 

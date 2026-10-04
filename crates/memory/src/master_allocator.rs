@@ -100,7 +100,7 @@ impl MasterAllocator {
         match size {
             // Tier 0
             8..=64 => {
-                if self.tier0.deallocate(ptr, size) {
+                if unsafe { self.tier0.deallocate(ptr, size) } {
                     self.stats.tier0_deallocations += 1;
                     true
                 } else {

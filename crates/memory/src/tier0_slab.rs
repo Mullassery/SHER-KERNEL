@@ -139,8 +139,25 @@ impl CpuSlabCache {
         }
     }
 
-    /// Deallocate back to this per-CPU cache (lock-free fast path)
-    pub fn deallocate(&self, ptr: *mut u8) -> bool {
+    /// Deallocate back to this per-CPU cache (lock-free fast path).
+    ///
+    /// # Safety
+    /// `ptr` must have been obtained from a previous `allocate()` call on
+    /// this same `CpuSlabCache` and must not already be deallocated
+    /// (no double-free). Unlike the Tier 1 slab allocator, this cache does
+    /// no containment check on `ptr` (it is stored into the free-object
+    /// array unconditionally), so passing a pointer that did not come from
+    /// this cache's `allocate()` will later be handed back out, unchecked,
+    /// by a future `allocate()` call to an unrelated caller, who will then
+    /// read/write through it — this was previously a *safe* `fn`, meaning
+    /// 100%-safe Rust code (no `unsafe` block anywhere) could store an
+    /// arbitrary attacker- or bug-controlled pointer here and have it
+    /// handed back out as "allocated memory," which is exactly the kind of
+    /// safe-API-causes-UB soundness hole `unsafe fn` markers exist to
+    /// prevent. Marked `unsafe` to match that real risk and to be
+    /// consistent with every other tier's deallocate (`Tier1Allocator`,
+    /// `MasterAllocator`), which already required `unsafe`.
+    pub unsafe fn deallocate(&self, ptr: *mut u8) -> bool {
         // Read current stack pointer
         let mut current = self.stack_ptr.load(Ordering::Acquire);
 
@@ -233,6 +250,25 @@ impl CpuSlabCache {
     }
 }
 
+impl Drop for CpuSlabCache {
+    /// Free every object still held in this cache's free-list.
+    ///
+    /// Without this, dropping a `CpuSlabCache` that was ever `refill_cache`d
+    /// (or had objects returned to it via `deallocate`) without an explicit
+    /// `drain_cache()` call first leaks every one of those heap allocations
+    /// — confirmed as a real, reachable leak via
+    /// `cargo +nightly miri test -p sher_memory` (every stress test that
+    /// calls `refill_all_caches` and then drops its allocator at the end of
+    /// the test reported a `memory leaked` error at
+    /// `tier0_slab.rs`'s `alloc(layout)` call site). `Tier1Allocator`'s
+    /// `SlabPage` already frees its backing page on `Drop`; this brings
+    /// `CpuSlabCache` in line with that same cleanup guarantee rather than
+    /// requiring every caller to remember to drain manually.
+    fn drop(&mut self) {
+        let _ = self.drain_cache();
+    }
+}
+
 // SAFETY: CpuSlabCache is safe to send and share across threads
 // The UnsafeCell is protected by atomic operations on stack_ptr
 unsafe impl Send for CpuSlabCache {}
@@ -287,7 +323,15 @@ impl Tier0Allocator {
 
     /// Deallocate to Tier 0
     /// This is the fast path for returning objects to cache
-    pub fn deallocate(&self, ptr: *mut u8, size: usize) -> bool {
+    ///
+    /// # Safety
+    /// `ptr` must have been obtained from a previous `allocate(size)` call
+    /// on this same `Tier0Allocator` with the same `size` (propagates
+    /// `CpuSlabCache::deallocate`'s safety contract — see its doc comment
+    /// for why this matters: this cache does no containment check, so an
+    /// invalid `ptr` would later be handed back out as "allocated" memory
+    /// to an unrelated caller).
+    pub unsafe fn deallocate(&self, ptr: *mut u8, size: usize) -> bool {
         let size_class = match SizeClass::from_size(size) {
             Some(sc) => sc,
             None => return false,
@@ -296,7 +340,7 @@ impl Tier0Allocator {
         let cpu_id = get_cpu_id() % self.num_cpus;
         let cache = &self.caches[cpu_id][size_class.as_index()];
 
-        cache.deallocate(ptr)
+        unsafe { cache.deallocate(ptr) }
     }
 
     /// Refill per-CPU caches from system allocator
@@ -448,7 +492,7 @@ mod tests {
         assert!(!ptr1.is_null());
 
         // Deallocate
-        assert!(allocator.deallocate(ptr1, 32));
+        assert!(unsafe { allocator.deallocate(ptr1, 32) });
 
         // Should be able to allocate again
         let ptr2 = allocator.allocate(32).expect("Second allocation failed");
@@ -492,7 +536,7 @@ mod tests {
 
         // Deallocate some
         for ptr in ptrs.iter().take(50) {
-            assert!(allocator.deallocate(*ptr, 32));
+            assert!(unsafe { allocator.deallocate(*ptr, 32) });
         }
 
         // Should be able to allocate again

@@ -263,7 +263,35 @@ impl PermissionChecker {
         PermissionChecker::default()
     }
 
-    /// Check permission with caching
+    /// Check permission with caching.
+    ///
+    /// Only **denied** outcomes are cached — a granted outcome is never
+    /// cached and is always re-verified against the live, time-bounded
+    /// capability grant on every call.
+    ///
+    /// This asymmetry is deliberate and security-relevant, not an
+    /// optimization left on the table: this workspace's capability model
+    /// is explicitly time-bounded with "no silent renewal" (see
+    /// `CapabilityGrant`/`CapabilityManager` — every grant carries an
+    /// `expires_at_ms` and `has_capability()` re-checks it against the
+    /// caller-supplied `current_time_ms` on every call). The previous
+    /// version of this function cached a granted (`true`) result
+    /// unconditionally, keyed only on `(context_id, capability)` with no
+    /// expiry or timestamp attached to the cache entry. That meant a
+    /// capability granted once and cached would continue to read as
+    /// "granted" from the cache forever — including long after the
+    /// underlying `CapabilityGrant` expired or was explicitly revoked —
+    /// because nothing invalidates the cache on a timer; only an explicit
+    /// `clear_cache()`/`clear_all()` call (which nothing in this crate's
+    /// enforcement path calls automatically) would remove the stale entry.
+    /// That is a real authorization bypass of this project's own
+    /// time-bounded-capability security model, reachable from this public
+    /// API (`PermissionChecker` is re-exported from `sher_lki`). Caching
+    /// only denials keeps the fast-path optimization for the safe
+    /// direction (repeatedly denying a driver that has never been granted
+    /// a capability is cheap and "fails secure" either way) while removing
+    /// the unsafe direction (silently treating an expired/revoked grant as
+    /// still valid).
     pub fn check(
         &mut self,
         enforcer: &mut SecurityEnforcer,
@@ -273,21 +301,21 @@ impl PermissionChecker {
     ) -> Result<()> {
         self.checks_performed += 1;
 
-        // Check cache
+        // Only a cached *denial* can be trusted without re-checking time —
+        // a cached grant cannot, since grants expire.
         if let Some(&cached) = self.capability_cache.get(&(context_id, capability)) {
-            if cached {
-                self.checks_passed += 1;
-                return Ok(());
-            } else {
+            if !cached {
                 self.checks_failed += 1;
                 return Err(Error::Driver("Permission denied (cached)".to_string()));
             }
         }
 
-        // Perform actual check
+        // Perform actual check (always, for a granted outcome — never
+        // trust a stale cache entry for permission to proceed).
         match enforcer.enforce(context_id, capability, current_time_ms) {
             Ok(_) => {
-                self.capability_cache.insert((context_id, capability), true);
+                // Deliberately not cached as `true` — see doc comment above.
+                self.capability_cache.remove(&(context_id, capability));
                 self.checks_passed += 1;
                 Ok(())
             }
