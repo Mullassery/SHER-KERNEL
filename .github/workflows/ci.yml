@@ -32,17 +32,19 @@ jobs:
         run: cargo fmt -- --check
 
       - name: cargo build (all targets, including examples and benches)
-        run: cargo build --workspace --all-targets
+        run: cargo build --workspace --all-targets --all-features
 
       - name: cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --all-features
 
-      # Deliberately not --all-targets: clippy over test/bench code surfaces
-      # a batch of real, pre-existing warnings (e.g. clone_on_copy on
-      # ObjectId) in code this pass didn't touch. --workspace (lib/bin
-      # targets) is the actual, currently-clean bar documented in the
-      # README/CLAUDE.md; widening this to --all-targets is real, separate
-      # follow-up work, not something to silently bundle into a CI-adding
-      # commit.
+      # Re-verified 2026-10: the test/bench clippy warnings this used to
+      # carve around (clone_on_copy on ObjectId, etc.) are gone from the
+      # current tree, so this now covers the full workspace including
+      # test/bench targets rather than silently exempting them.
       - name: cargo clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: cargo audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
