@@ -220,6 +220,21 @@ cargo build --workspace                     # build everything
 cargo doc --workspace --no-deps --open      # browse per-crate simulation-boundary docs
 ```
 
+## Linux / Ubuntu compatibility
+
+Verified 2026-10 (see org-wide `SHER-LINUX-RUST-COMPATIBILITY.md`):
+
+- **Ubuntu**: 24.04 LTS and 26.04 LTS, both confirmed via real Docker containers (not assumed).
+- **Architecture**: x86_64 and arm64, both confirmed (arm64 native, x86_64 via emulation).
+- **Rust**: stable, edition 2021; no MSRV floor below current stable (tested at 1.97–1.99).
+- **Kernel version**: not applicable — this is a userspace Rust workspace (`std`+`tokio`,
+  no `no_std`, no bootloader). It has no syscall ABI and no kernel-version dependency of its
+  own; see "What this project actually is" above and `crates/compatibility`/`crates/lki`'s
+  own docs for the Linux/POSIX **name**-level (not ABI/syscall-level) mapping this repo provides.
+- **Known limitations**: `cargo audit`/`cargo deny` are wired into CI but have never been
+  observed to actually execute in any sandbox used so far (no network route to the advisory
+  database) — tracked, not blocking. No fuzzing yet (tracked in `ROADMAP_HONEST.md`).
+
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** — architecture and implementation guide for this repo
