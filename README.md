@@ -2,6 +2,12 @@
 
 **A userspace prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts — not a bootable kernel.**
 
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/Mullassery/SHER-KERNEL/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/SHER-KERNEL/actions/workflows/ci.yml)
+[![Rust Edition 2021](https://img.shields.io/badge/edition-2021-orange.svg)](Cargo.toml)
+
+**Contents**: [What this is](#what-this-project-actually-is) · [Use cases](#use-cases) · [Status](#status) · [Quick Start](#quick-start) · [Real vs. simulated](#whats-real-vs-simulated) · [Known gaps](#known-gaps-external-critique-verified) · [SHER family](#sher-family) · [Cross-repo boundary](#cross-repo-boundary) · [Performance notes](#performance-notes) · [Build & Test](#build--test) · [Linux/Ubuntu compatibility](#linux--ubuntu-compatibility) · [Docs](#documentation)
+
 ---
 
 ## What this project actually is
@@ -52,20 +58,13 @@ If you came here expecting a kernel you can boot on bare metal, this is not that
 ```bash
 git clone https://github.com/Mullassery/SHER-KERNEL.git
 cd SHER-KERNEL
-
-# Run the full test suite
 cargo test --workspace
 
-# Lint and format checks
-cargo clippy --workspace -- -D warnings
-cargo fmt --check
-
-# Build everything
-cargo build --workspace
-
-# Run the CLI (prints an accurate status summary, not a boot sequence)
+# Prints an accurate status summary, not a boot sequence
 cargo run --bin sher-kernel -- --status
 ```
+
+Full lint/format/build commands are in [Build & Test](#build--test) below.
 
 ## What's real vs. simulated
 
@@ -116,8 +115,21 @@ Every module above states its simulation boundary in its own doc comments (`carg
 ## Known gaps (external critique, verified)
 
 - **The in-process IPC primitive is now a real lock-free, zero-copy ring buffer — fixed.** `crates/core/src/ipc.rs` (`IpcBus`) used to be a `HashMap<String, VecDeque<Message>>` mailbox behind `&mut self` (needs an external mutex to share across threads) that copied every payload into an owned `Vec<u8>`. Each mailbox is now a bounded [`crossbeam_queue::ArrayQueue`](https://docs.rs/crossbeam-queue) (a well-established lock-free bounded queue), and `Message::payload` is `Arc<[u8]>` — `send`/`receive` take `&self` and are safe to call concurrently from multiple threads with no mutex, and passing a framebuffer/input-event buffer is an O(1) refcount clone, not a byte copy. Verified with a real multi-threaded test (8 producer threads, no external locking, `IpcBus` shared via `Arc`) and a pointer-identity test proving payloads aren't copied. **Still not real cross-process IPC**: there is still no actual transport for framebuffers/input events to `SHER-Display` — that cross-repo data path isn't implemented here, only the in-process primitive it would build on. This repo is a single-process userspace prototype (see CLAUDE.md); real cross-process transport (shared memory segments, a socket protocol, etc.) is a materially different, OS-process-boundary-crossing feature that would need to be designed jointly with `SHER-Display`, not something this crate can honestly claim on its own.
-- **No fuzzing.** No `fuzz/` directory, no cargo-fuzz/libfuzzer/afl anywhere in the repo, and CI (`.github/workflows/ci.yml`) only runs fmt/build/test/clippy. Syscall-parameter validation in `hardening`/`lki` is unit-tested but never fuzzed against malformed/adversarial input.
+- **No fuzzing.** No `fuzz/` directory, no cargo-fuzz/libfuzzer/afl anywhere in the repo, and CI (`.github/workflows/ci.yml`) only runs fmt/build/test/clippy. Syscall-parameter validation in `hardening`/`lki` is unit-tested but never fuzzed against malformed/adversarial input. (Also noted below under [Linux/Ubuntu compatibility](#linux--ubuntu-compatibility) for anyone jumping straight there.)
 - **"Isolated driver runtime" is object-model isolation, not OS-level sandboxing** — worth being explicit about this distinction if it ever comes up externally. Crash-restart is real (`crates/recovery/src/crash_recovery.rs`: exponential backoff, quarantine after repeated crashes; `driver_runtime/src/container.rs` tracks `crash_count` and allows `Stopped → Starting`), and `driver_runtime/src/sandbox.rs` enforces real in-process capability/syscall/file-access policy checks. But there's no `unsafe`, no `process::Command`/fork, no seccomp/cgroup/namespace usage anywhere in `driver_runtime` — drivers run in-process with the kernel object model, not as separate unprivileged OS processes. That's consistent with this repo's stated userspace-prototype scope (see CLAUDE.md), not a bug to fix, but the gap between "policy-level isolation" and "real process isolation" matters if this is ever pitched as literal driver crash containment.
+
+## SHER family
+
+This repo is one of six under the [Mullassery](https://github.com/Mullassery) org. The
+other five, for discoverability (not all of them have a Cargo dependency on this repo —
+see [Cross-repo compatibility](#cross-repo-compatibility-verified-whole-family) below for
+which ones actually do):
+
+- **[SHER-Process-Explorer](https://github.com/Mullassery/SHER-Process-Explorer)** — Linux process telemetry (`/proc`, perf, strace/eBPF, containers, journald).
+- **[SHER-INPUT](https://github.com/Mullassery/SHER-INPUT)** — physical input normalization into a canonical event stream.
+- **[SHER-Graphics](https://github.com/Mullassery/SHER-Graphics)** — graphics architecture: pure-Rust software GPU reference driver plus a real Vulkan/`ash` backend. Depends on this repo.
+- **[SHER-Display](https://github.com/Mullassery/SHER-Display)** — display server/compositor/window manager, Wayland/X11-compatible. Depends on this repo (and SHER-Graphics, SHER-INPUT).
+- **[SHER-Aurora](https://github.com/Mullassery/SHER-Aurora)** — GNOME/GTK4-oriented Rust design system. No Cargo-level coupling to this repo; shared "SHER" naming is organizational only.
 
 ## Cross-repo boundary
 
@@ -233,7 +245,7 @@ Verified 2026-10 (see org-wide `SHER-LINUX-RUST-COMPATIBILITY.md`):
   own docs for the Linux/POSIX **name**-level (not ABI/syscall-level) mapping this repo provides.
 - **Known limitations**: `cargo audit`/`cargo deny` are wired into CI but have never been
   observed to actually execute in any sandbox used so far (no network route to the advisory
-  database) — tracked, not blocking. No fuzzing yet (tracked in `ROADMAP_HONEST.md`).
+  database) — tracked, not blocking. No fuzzing yet (see [Known gaps](#known-gaps-external-critique-verified) above).
 
 ## Documentation
 
