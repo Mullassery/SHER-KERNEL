@@ -1,5 +1,7 @@
 # SHER Kernel
 
+[![Grapify](https://img.shields.io/badge/Grapify-Code%20Scan-purple)](https://grapify.ai)
+
 **A userspace prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts — not a bootable kernel.**
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
