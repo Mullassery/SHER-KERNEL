@@ -1,6 +1,6 @@
 # SHER Kernel
 
-[![Grapify](https://img.shields.io/badge/Grapify-Code%20Scan-purple)](https://grapify.ai)
+[![Graphify](https://img.shields.io/badge/Graphify-knowledge%20graph-blue)](https://github.com/Graphify-Labs/graphify)
 
 **A userspace prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts — not a bootable kernel.**
 
