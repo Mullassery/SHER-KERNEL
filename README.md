@@ -1,292 +1,122 @@
 # SHER Kernel
 
-[![Graphify](https://img.shields.io/badge/Graphify-knowledge%20graph-blue)](https://github.com/Graphify-Labs/graphify)
-
-**A userspace prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts — not a bootable kernel.**
+A userspace Rust prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts — **not a bootable kernel**.
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/Mullassery/SHER-KERNEL/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/SHER-KERNEL/actions/workflows/ci.yml)
-[![Rust Edition 2021](https://img.shields.io/badge/edition-2021-orange.svg)](Cargo.toml)
 
-**Contents**: [What this is](#what-this-project-actually-is) · [Use cases](#use-cases) · [Status](#status) · [Quick Start](#quick-start) · [Real vs. simulated](#whats-real-vs-simulated) · [Known gaps](#known-gaps-external-critique-verified) · [SHER family](#sher-family) · [Cross-repo boundary](#cross-repo-boundary) · [Performance notes](#performance-notes) · [Build & Test](#build--test) · [Linux/Ubuntu compatibility](#linux--ubuntu-compatibility) · [Docs](#documentation)
+## What it is
 
----
+SHER Kernel is a Rust workspace of 40 userspace crates (`std` + `tokio`, no `no_std`) that prototypes what the internal APIs of a future, from-scratch OS kernel *might* look like: a capability-based object model, a priority scheduler, tiered memory bookkeeping, a driver lifecycle/registry, crash recovery, and an A/B transactional updater.
 
-## What this project actually is
+It runs as an ordinary process on macOS or Linux — there is no bootloader, no ring-0/bare-metal code, and no real MMU or interrupt-controller programming anywhere in the repository. It is also the foundation of the SHER family: `SHER-Graphics` and `SHER-Display` consume its shared value types and traits (`hal`, `gpu_driver`, `wayland_server`) via Cargo path dependencies.
 
-SHER Kernel is a Rust **workspace of 40 userspace crates** (`std` + `tokio`, no `no_std`) that prototypes what the internal APIs of a future, from-scratch OS kernel *might* look like: a capability-based object model, a priority scheduler, tiered memory bookkeeping, a driver lifecycle/registry, crash recovery, and an A/B transactional updater.
+## Features / Highlights
 
-It is **not**:
-- A bootable kernel. There is no bootloader, no ring-0/bare-metal code, no real MMU/interrupt-controller programming anywhere in this repository.
-- A Linux replacement you can install or boot.
-- A validated performance comparison against Linux (see [Performance notes](#performance-notes) below for what the numbers in this repo's docs actually measure).
+- **40-crate workspace** with roughly 768 unit/integration tests passing (`cargo test --workspace`; run it for the authoritative count), `clippy -D warnings` and `fmt --check` clean.
+- **Capability-based, time-bounded security** — every permission grant carries an expiry, with sandbox policy and an audit log (`objectmodel`, `security`, `security_audit`).
+- **Priority scheduler** (highest-priority-first, FIFO tie-break) with per-target queues, plus a shared priority work queue for simulated CPU/GPU/NPU/DSP dispatch (`scheduler`, `compute`).
+- **Tiered memory bookkeeping** — per-CPU and per-socket slab allocators, master routing, DMA buffer accounting, and page-table map/unmap (`memory`).
+- **Driver lifecycle and crash recovery** — device registry, hot-plug queue, driver container lifecycle, sandbox policy, exponential-backoff crash recovery and quarantine (`device_manager`, `driver_runtime`, `recovery`).
+- **A/B transactional updates** — download → verify → boot-test → commit/rollback built on `recovery`, with instant-rollback snapshot pointers (`updater`, `snapshot`).
+- **Lock-free, zero-copy in-process IPC** — a bounded `crossbeam_queue::ArrayQueue` mailbox with `Arc<[u8]>` payloads, safe to `send`/`receive` concurrently with no external mutex (`core::ipc`).
+- **AI subsystem over caller-supplied metrics** — anomaly detection (leaks, interrupt storms, DMA abuse), predictive allocation, adaptive scheduling, and reinforcement learning (`ai`).
+- **Linux/POSIX name-level translation** — syscall-name → SHER-subsystem lookup tables with validation; explicitly not a binary-compatible syscall ABI (`lki`, `compatibility`).
+- **Driver-shaped APIs for siblings** — HAL and hardware/GPU/audio/input/Wayland value types consumed by `SHER-Graphics` and `SHER-Display`.
 
-It **is**:
-- A working, tested simulation of kernel-shaped subsystems, runnable as an ordinary process on macOS/Linux.
-- A reasonable place to prototype and unit-test object-model/scheduling/security-policy ideas before any of them would touch real hardware.
-- Honest, as of this revision, about which parts are real logic vs. which parts are placeholders for things that fundamentally require kernel privileges (see below).
+## Who it's for / Use cases
 
-If you came here expecting a kernel you can boot on bare metal, this is not that project (yet, if ever). If you came here to look at how a capability-based, driver-isolated object model could be designed and tested in Rust, that's exactly what's here.
+- **Prototyping capability-based, time-bounded permission models** before committing to real kernel/hardware work — `security`/`objectmodel` provide real, unit-tested state machines to design against.
+- **Testing driver lifecycle and crash-recovery policy in-process** — `driver_runtime`/`recovery` provide real sandbox/quarantine/backoff logic without privileged driver code.
+- **Providing shared value types/traits** that sibling repos `SHER-Graphics` and `SHER-Display` build on — this is the repo's primary real-world role today.
+- **Studying a from-scratch design for kernel-shaped subsystems** (object model, scheduling, memory) as an ordinary, testable Rust workspace.
 
-## Use cases
+## What it is not
 
-- **Prototyping capability-based, time-bounded permission models** before
-  committing to a real kernel/hardware implementation — `security`/
-  `objectmodel` give real, unit-tested state machines to design against.
-- **Testing driver lifecycle and crash-recovery policy** in-process —
-  `driver_runtime`/`recovery` provide real sandbox/quarantine/backoff logic
-  without needing actual privileged driver code.
-- **Providing the shared value types/traits (`hal`, `gpu_driver`,
-  `wayland_server`) that sibling repos `SHER-Graphics` and `SHER-Display`
-  build on** — this is this repo's primary real-world role today (see
-  [Cross-repo boundary](#cross-repo-boundary)).
-- **Not a fit for:** anything needing to actually boot, talk to real
-  hardware, or provide OS-level process isolation — see
-  [What this project actually is](#what-this-project-actually-is) above.
+- **Not a bootable kernel.** No bootloader, no ring-0/bare-metal code, no real MMU/interrupt-controller programming. It does not boot on bare metal and is not installable.
+- **Not a Linux replacement or distribution.** `lki`/`compatibility` translate API *names*, not a syscall ABI, and provide no emulation.
+- **No validated performance comparison against Linux.** Any "SHER vs Linux" percentage in older docs is illustrative micro-op cost, not a kernel claim.
+- **No fuzzing.** Syscall-parameter validation is unit-tested but never fuzzed against malformed input. `cargo audit`/`cargo deny` are wired into CI but have not been observed to execute in any sandbox so far (no network route to the advisory database).
+- **Driver isolation is object-model isolation, not OS-level sandboxing.** There is no `unsafe`, no fork/`process::Command`, and no seccomp/cgroup/namespace usage in `driver_runtime`; drivers run in-process with the kernel object model.
+- **No real cross-process IPC transport yet.** The in-process IPC primitive exists, but there is no shared-memory or socket transport for framebuffers/input events into `SHER-Display`.
+- **Subsystems that require ring-0 or raw-device access are explicitly simulated**, not implemented: `bootstrap` (Stage-0 CPU/MMU/heap bring-up), `networking`/`storage` (registries with no real NIC/disk access), and `interrupt` dispatch bookkeeping.
+- **Not published** to crates.io or any registry; consumed only via Cargo path dependencies.
 
-## Status
+## Project status
 
-- **768 unit/integration tests, 100% passing** (`cargo test --workspace`, re-verified this pass; earlier revisions of this file said 767 — off by one, corrected here rather than left stale)
-- **`cargo clippy --workspace -- -D warnings`**: clean
-- **`cargo clippy --workspace --all-targets --all-features -- -D warnings`**: clean (re-verified 2026-10-04 during a Linux/Ubuntu-Rust compatibility audit). Earlier revisions of this file reported 95 pre-existing warnings here (mostly `clippy::clone_on_copy` on `ObjectId`); those have since been fixed and CI now runs the full `--all-targets --all-features` form rather than the narrower `--workspace`-only command.
-- **`cargo fmt --check`**: clean
-- **`cargo build --workspace --all-targets`** (including `benches/`): clean as of this pass — 5 benchmark files (`crates/memory/benches/allocator_bench.rs`, `crates/benchmarks/benches/{memory_allocation,lki_translation,device_enumeration,security_checks}.rs`) didn't compile at all before this pass (missing `criterion` dev-dependency, and calls into `sher_lki`/`sher_device_manager`/`sher_security`/`MemoryAllocator` APIs that had since been redesigned). Rewrote each against the current real APIs and verified every benchmark function actually executes (`cargo bench --workspace -- --test`).
-- 40 crates surveyed; the ones that were near-empty stubs (`pub fn x() {}`) have been implemented with real, tested logic — see the breakdown below.
-- Not published anywhere (no crates.io/PyPI); consumed by sibling repos (`SHER-Graphics`, `SHER-Display`) via Cargo path dependencies.
-- **CI**: this repo had no `.github/workflows/` at all before this pass — every claim above had to be re-verified by hand rather than continuously checked. Added a standard `cargo fmt`/`build --all-targets`/`test`/`clippy` workflow, matching the pattern already used by the sibling `SHER-Graphics`/`SHER-Input` repos.
+- **Implemented, with real tested logic:** `common`, `objectmodel`, `security`, `scheduler`, `compute`, `memory`, `device_manager`, `driver_runtime`, `interrupt` (simulated dispatch), `diagnostics`, `services`, `snapshot`, `updater`, `recovery`, `compatibility`, `networking`/`storage` (simulated I/O), `aro`, `runtime`, `ai`, `lki`, the HAL/driver-shaped crates, and supporting subsystems (`hardening`, `security_audit`, `performance_optimization`, `profiling`, `digital_twins`, `system_integration`, `benchmarks`, `release_engineering`).
+- **Explicitly simulated (fundamentally requires hardware/privilege):** `bootstrap`, the Stage-1 primitives in `core`, and the early `drivers` prototype. Each module states its simulation boundary in its own doc comments (`cargo doc --workspace --no-deps --open`).
+- **Orchestration:** `kernel` wires the above into a single in-process `SherKernel` with audit logging, AI service wiring, and status reporting.
+- **CI:** `cargo fmt` / `build --all-targets` / `test` / `clippy`, matching the sibling repos.
+- **Not started / no plan to start in-repo:** a bootable bare-metal kernel — that would be a separate, multi-year bootloader/hardware effort out of scope here.
 
-## Quick Start
+## Installation
+
+Not published to any registry. Build from source with a stable Rust toolchain (edition 2021):
 
 ```bash
 git clone https://github.com/Mullassery/SHER-KERNEL.git
 cd SHER-KERNEL
+cargo build --workspace
+```
+
+To consume it from a sibling project, add a path dependency (as `SHER-Graphics` and `SHER-Display` do):
+
+```toml
+[dependencies]
+sher_common = { path = "../SHER-KERNEL/crates/common" }
+sher_objectmodel = { path = "../SHER-KERNEL/crates/objectmodel" }
+gpu_driver = { path = "../SHER-KERNEL/crates/gpu_driver" }
+wayland_server = { path = "../SHER-KERNEL/crates/wayland_server" }
+```
+
+## Quick start
+
+```bash
 cargo test --workspace
 
 # Prints an accurate status summary, not a boot sequence
 cargo run --bin sher-kernel -- --status
 ```
 
-Full lint/format/build commands are in [Build & Test](#build--test) below.
+## Usage
 
-## What's real vs. simulated
-
-This is the honest part. Every crate falls into one of three buckets.
-
-### Real, tested userspace logic (no hardware claims)
-
-These implement actual algorithms/state machines and have unit tests exercising them — they are genuine, just not privileged:
-
-| Crate | What's real |
-|---|---|
-| `common` | Core types (`ObjectId`, `Capability`, error types) |
-| `objectmodel` | Kernel object identity, lifecycle state machine, time-bounded capability grants, telemetry/health |
-| `scheduler` | Priority-queue task scheduler (highest-priority-first, FIFO tie-break), per-target queues |
-| `compute` | Shared priority work queue backing simulated CPU/GPU/NPU/DSP dispatch |
-| `memory` | Tiered slab allocators (Tier 0 per-CPU, Tier 1 per-socket), master allocator routing, DMA buffer bookkeeping, page-table map/unmap |
-| `device_manager` | Device registry, state machine, hot-plug event queue |
-| `driver_runtime` | Driver container lifecycle, sandboxing policy |
-| `security` | Capability grants, sandbox policy, audit log |
-| `interrupt` | Interrupt registration, shared-IRQ priority dispatch, enable/disable — **dispatch is simulated invocation bookkeeping, not real IRQ handling** |
-| `diagnostics` | Fixed-capacity ring buffer, counter/gauge/event telemetry collector |
-| `services` | Profile-based (Server/Workstation/Headless) lazy service-loading policy |
-| `snapshot` | Versioned snapshot store with instant-rollback pointer semantics |
-| `updater` | A/B transactional update state machine (download → verify → boot-test → commit/rollback) built on `recovery` |
-| `recovery` | Immutable A/B partition bookkeeping, boot pointer with rollback, health-check probes, crash-recovery backoff/quarantine, watchdog heartbeats |
-| `compatibility` | Linux/POSIX syscall-name → SHER-subsystem lookup tables (not a binary-compatible syscall ABI) |
-| `networking`, `storage` | Device registries with MTU-checked send/receive and bounds-checked in-memory block I/O — **simulated, no real NIC/disk access** |
-| `aro` | Host memory-tier detection via `/proc/meminfo` / `sysctl` (real on Linux/macOS, documented fallback elsewhere), battery/thermal adaptation policy |
-| `runtime` | Lazy service registry |
-| `ai` | Anomaly detection (memory-leak/interrupt-storm/DMA-abuse heuristics), predictive allocation, adaptive scheduling, reinforcement learning — real logic operating on synthetic/caller-supplied metrics, not live kernel telemetry |
-| `lki` | Linux Kernel Interface: broader syscall-name → SHER-primitive translation with validation and security/audit layers |
-| `hal`, `gpu_driver`, `audio_driver`, `input_driver`, `wayland_server`, `unified_device_manager` | Hardware Abstraction Layer and driver-shaped APIs consumed by sibling repos (see below) — real Rust logic, but they do not talk to physical GPU/audio/input hardware |
-| `hardening`, `security_audit`, `performance_optimization`, `recovery`, `profiling`, `digital_twins`, `system_integration`, `performance_benchmarks`, `release_engineering`, `benchmarks` | Real, tested supporting subsystems (memory-safety checks, syscall hardening, object pooling, profiling, event replay, integration test harnesses, release/version bookkeeping) |
-| `kernel` | Orchestrates the above into a single in-process `SherKernel` with audit logging, AI service wiring, and status reporting |
-
-### Explicitly simulated — fundamentally requires hardware/kernel privileges
-
-These are kept as clearly-labeled simulations rather than pretending to do real hardware I/O, because doing them for real requires ring-0 access or root/raw-device access this userspace crate does not have:
-
-| Crate | Why it's simulated |
-|---|---|
-| `bootstrap` | Stage-0 CPU/MMU/heap bring-up — real hardware bring-up needs ring-0. `cpu::get_info()` does query real host parallelism via `std::thread::available_parallelism`; everything else is a documented, illustrative placeholder. |
-| `core` | Stage-1 primitives are real in-process logic (object manager, IPC mailboxes, capability enforcement, timer wheel, FIFO CPU scheduler) — listed here only because the crate's job is to sit directly on top of `bootstrap`. |
-| `drivers` | An early, self-contained prototype of discovery → driver-matching → sandboxed-load policy, superseded in the actual kernel wiring by `device_manager` + `driver_runtime` (kept for its own test coverage, not double-wired into `kernel`). |
-
-Every module above states its simulation boundary in its own doc comments (`cargo doc --workspace --no-deps --open` to browse them).
-
-## Known gaps (external critique, verified)
-
-- **The in-process IPC primitive is now a real lock-free, zero-copy ring buffer — fixed.** `crates/core/src/ipc.rs` (`IpcBus`) used to be a `HashMap<String, VecDeque<Message>>` mailbox behind `&mut self` (needs an external mutex to share across threads) that copied every payload into an owned `Vec<u8>`. Each mailbox is now a bounded [`crossbeam_queue::ArrayQueue`](https://docs.rs/crossbeam-queue) (a well-established lock-free bounded queue), and `Message::payload` is `Arc<[u8]>` — `send`/`receive` take `&self` and are safe to call concurrently from multiple threads with no mutex, and passing a framebuffer/input-event buffer is an O(1) refcount clone, not a byte copy. Verified with a real multi-threaded test (8 producer threads, no external locking, `IpcBus` shared via `Arc`) and a pointer-identity test proving payloads aren't copied. **Still not real cross-process IPC**: there is still no actual transport for framebuffers/input events to `SHER-Display` — that cross-repo data path isn't implemented here, only the in-process primitive it would build on. This repo is a single-process userspace prototype (see CLAUDE.md); real cross-process transport (shared memory segments, a socket protocol, etc.) is a materially different, OS-process-boundary-crossing feature that would need to be designed jointly with `SHER-Display`, not something this crate can honestly claim on its own.
-- **No fuzzing.** No `fuzz/` directory, no cargo-fuzz/libfuzzer/afl anywhere in the repo, and CI (`.github/workflows/ci.yml`) only runs fmt/build/test/clippy. Syscall-parameter validation in `hardening`/`lki` is unit-tested but never fuzzed against malformed/adversarial input. (Also noted below under [Linux/Ubuntu compatibility](#linux--ubuntu-compatibility) for anyone jumping straight there.)
-- **"Isolated driver runtime" is object-model isolation, not OS-level sandboxing** — worth being explicit about this distinction if it ever comes up externally. Crash-restart is real (`crates/recovery/src/crash_recovery.rs`: exponential backoff, quarantine after repeated crashes; `driver_runtime/src/container.rs` tracks `crash_count` and allows `Stopped → Starting`), and `driver_runtime/src/sandbox.rs` enforces real in-process capability/syscall/file-access policy checks. But there's no `unsafe`, no `process::Command`/fork, no seccomp/cgroup/namespace usage anywhere in `driver_runtime` — drivers run in-process with the kernel object model, not as separate unprivileged OS processes. That's consistent with this repo's stated userspace-prototype scope (see CLAUDE.md), not a bug to fix, but the gap between "policy-level isolation" and "real process isolation" matters if this is ever pitched as literal driver crash containment.
-
-## SHER family
-
-This repo is one of six under the [Mullassery](https://github.com/Mullassery) org. The
-other five, for discoverability (not all of them have a Cargo dependency on this repo —
-see [Cross-repo compatibility](#cross-repo-compatibility-verified-whole-family) below for
-which ones actually do):
-
-- **[SHER-Process-Explorer](https://github.com/Mullassery/SHER-Process-Explorer)** — Linux process telemetry (`/proc`, perf, strace/eBPF, containers, journald).
-- **[SHER-INPUT](https://github.com/Mullassery/SHER-INPUT)** — physical input normalization into a canonical event stream.
-- **[SHER-Graphics](https://github.com/Mullassery/SHER-Graphics)** — graphics architecture: pure-Rust software GPU reference driver plus a real Vulkan/`ash` backend. Depends on this repo.
-- **[SHER-Display](https://github.com/Mullassery/SHER-Display)** — display server/compositor/window manager, Wayland/X11-compatible. Depends on this repo (and SHER-Graphics, SHER-INPUT).
-- **[SHER-Aurora](https://github.com/Mullassery/SHER-Aurora)** — GNOME/GTK4-oriented Rust design system. No Cargo-level coupling to this repo; shared "SHER" naming is organizational only.
-
-## Cross-repo boundary
-
-`SHER-Graphics` and `SHER-Display` depend on this repo via Cargo path dependencies (not published packages). The contracts that matter:
-
-- **`hal::HardwareDriver`** is a real shared trait `SHER-Graphics` depends on — unchanged.
-- **`wayland_server`** has functions/types marked `#[deprecated]` with notes that compositor/input/surface/output policy now belongs to `SHER-Display`; `wayland_server::WaylandTransport` is the low-level substrate `SHER-Display` actually consumes. Nothing in that boundary was altered.
-- `cargo check --workspace` in `SHER-Graphics` and `SHER-Display` (when present locally) passes against this revision.
-
-### Cross-repo compatibility (verified, whole family)
-
-This repo is the foundation of a family of five sibling repos under the
-Mullassery org, all expected to be cloned as sibling directories:
-`SHER-Kernel`, `SHER-Graphics`, `SHER-Display`, `SHER-Input`, and `Aurora`
-(GitHub: `SHER-Aurora`). Actual Cargo-level coupling, confirmed by reading
-every `Cargo.toml` in the family (not assumed from naming):
-
-- **SHER-Kernel** (this repo) — foundation, no dependency on any sibling.
-- **SHER-Graphics** — depends on this repo (`sher_common`, `sher_objectmodel`,
-  `sher_security`, `hal`, `gpu_driver`) via relative path.
-- **SHER-Input** — standalone, no dependency on any sibling.
-- **SHER-Display** — depends on all three: this repo (`sher_common`,
-  `sher_objectmodel`, `gpu_driver`, `wayland_server`), SHER-Graphics
-  (`graphics_api`, `gpu_abstraction`, `graphics_runtime`, `graphics_compat`),
-  and SHER-Input (`sher_input_core`, `sher_input_test`) — all via relative
-  path, so all four repos must be sibling directories for its build to
-  resolve.
-- **Aurora** — zero Cargo-level coupling to any of the above four. It's a
-  standalone GTK/Qt/Web design-system toolkit; the shared "SHER" naming
-  (`SHER-Aurora` on GitHub) is organizational only, not a build dependency.
-
-All four coupled repos use Rust edition 2021 (semver differs by design —
-Kernel/Graphics/Input are at 0.2.0, Display at 0.1.0, being the newest).
-Verified empirically: a from-scratch `cargo build --workspace` in
-SHER-Graphics against this repo's current state compiles clean; a
-from-scratch `cargo build --workspace` in SHER-Display against this repo +
-SHER-Graphics + SHER-Input compiles clean across all 14 SHER-Display
-crates; `cargo test --workspace` in SHER-Display passes 56/56, genuinely
-exercising the cross-repo boundary (SHER-Input's simulated backend, this
-repo's `gpu_driver` value types, SHER-Graphics's `graphics_api`/
-`graphics_runtime`). Only SHER-Graphics depends directly on a low-level
-external graphics crate (`ash` 0.38); it isn't leaked across the repo
-boundary, so there's no divergent-version risk for shared external types.
-
-Boundary discipline (never instantiate a driver another subsystem already
-owns) holds across the live chain: SHER-Display's `outputs` crate does not
-instantiate `gpu_driver::GPUDriver`, only consuming its value types; its
-`input` crate consumes the real `sher_input_core::InputService` rather than
-reimplementing it. One disclosed exception exists *within this repo*: the
-`system_integration` crate (a deprecated, internal-only Phase-12
-integration-test harness — see its own doc comment) instantiates its own
-`GPUDriver`/`WaylandCompositor`/etc. for isolated end-to-end testing. It
-explicitly states it is not part of the real cross-repo boundary and warns
-against copying the pattern elsewhere — a known, self-documented exception,
-not a live violation.
-
-## Performance notes
-
-Earlier revisions of this repo's docs (`BENCHMARK_RESULTS.md`, `PERFORMANCE_METRICS.md`) presented tables like "SHER vs Linux ACL: -88% overhead" as if they were a validated systems-level comparison. They were not: those numbers came from microbenchmarking individual in-process Rust operations (e.g. a `HashMap` lookup) against *assumed* Linux syscall costs, not from running an actual Linux kernel side-by-side. Treat any "SHER vs Linux" percentage in this repo's older docs as illustrative of relative micro-op cost, not a kernel performance claim. `crates/benchmarks` and `crates/performance_benchmarks` contain real Criterion/harness benchmarks of this repo's own code, which is what they can honestly measure.
-
-## Project Organization
-
-```
-crates/
-├── common/, objectmodel/, security/     # Foundation types, object model, capabilities
-├── bootstrap/, core/, runtime/          # Staged boot simulation (Stage 0/1/2)
-├── memory/, compute/, scheduler/        # Memory tiers, accelerator queues, priority scheduler
-├── device_manager/, driver_runtime/,
-│   drivers/, hal/                       # Device registry, driver lifecycle, HAL
-├── interrupt/, networking/, storage/    # Simulated I/O-adjacent subsystems
-├── security_audit/, hardening/          # Memory-safety & syscall hardening
-├── recovery/, snapshot/, updater/       # A/B images, rollback, transactional updates
-├── diagnostics/, profiling/,
-│   performance_optimization/            # Telemetry, profiling, object pooling
-├── ai/                                  # Anomaly detection, predictive allocation, RL
-├── lki/, compatibility/                 # Linux/POSIX API-name translation tables
-├── gpu_driver/, audio_driver/,
-│   input_driver/, wayland_server/,
-│   unified_device_manager/              # Driver-shaped subsystems (SHER-Display boundary)
-├── digital_twins/, system_integration/,
-│   benchmarks/, performance_benchmarks/,
-│   release_engineering/                 # Testing/release tooling
-└── kernel/                              # In-process orchestrator (SherKernel)
-```
-
-## Design Principles
-
-- **Capability-based, time-bounded permissions**: every grant carries an expiry; nothing is permanent by default.
-- **Driver isolation**: driver lifecycle goes through a sandbox/container abstraction rather than running inline.
-- **Immutable A/B updates**: the updater only ever writes to the standby partition; the active boot pointer is a single, reversible pointer flip.
-- **Honesty about simulation boundaries**: every module that can't do the real thing (hardware I/O, ring-0) says so in its own doc comment instead of pretending.
-
-## Build & Test
+Build, test, lint, and browse per-crate simulation-boundary docs:
 
 ```bash
-cargo test --workspace                      # 768 tests
-cargo clippy --workspace -- -D warnings     # lint, clean
-cargo fmt --check                           # formatting, clean
-cargo build --workspace                     # build everything
-cargo doc --workspace --no-deps --open      # browse per-crate simulation-boundary docs
+cargo test --workspace                      # run the full test suite
+cargo clippy --workspace -- -D warnings     # lint
+cargo fmt --check                           # formatting
+cargo build --workspace --all-targets       # build binaries, tests, benches
+cargo doc --workspace --no-deps --open      # per-crate docs
 ```
-
-## Linux / Ubuntu compatibility
-
-Verified 2026-10 (see org-wide `SHER-LINUX-RUST-COMPATIBILITY.md`):
-
-- **Ubuntu**: 24.04 LTS and 26.04 LTS, both confirmed via real Docker containers (not assumed).
-- **Architecture**: x86_64 and arm64, both confirmed (arm64 native, x86_64 via emulation).
-- **Rust**: stable, edition 2021; no MSRV floor below current stable (tested at 1.97–1.99).
-- **Kernel version**: not applicable — this is a userspace Rust workspace (`std`+`tokio`,
-  no `no_std`, no bootloader). It has no syscall ABI and no kernel-version dependency of its
-  own; see "What this project actually is" above and `crates/compatibility`/`crates/lki`'s
-  own docs for the Linux/POSIX **name**-level (not ABI/syscall-level) mapping this repo provides.
-- **Known limitations**: `cargo audit`/`cargo deny` are wired into CI but have never been
-  observed to actually execute in any sandbox used so far (no network route to the advisory
-  database) — tracked, not blocking. No fuzzing yet (see [Known gaps](#known-gaps-external-critique-verified) above).
 
 ## Documentation
 
-- **[CLAUDE.md](CLAUDE.md)** — architecture and implementation guide for this repo
-- **[VISION.md](VISION.md)** — why this repo exists and what it's actually
-  prototyping, rewritten to match this README's standard (no longer the old
-  "operating system for the next decade" pitch)
-- **[ROADMAP.md](ROADMAP.md)** — what's built per crate, what's explicitly
-  not started, and a concrete near-term plan (also rewritten; no longer the
-  old 16-week production-release schedule)
-- **[ROADMAP_HONEST.md](ROADMAP_HONEST.md)** — technical debt ledger
-  (exact clippy warning counts/file:line, unsafe/unwrap density, missing
-  fuzzing/dependency-audit CI) and a timestamped verification snapshot,
-  supplementing ROADMAP.md rather than replacing it
-- **[SECURITY.md](SECURITY.md)** — how to report issues; honest about
-  there being no dedicated security team or SLA
-- **[CHANGELOG.md](CHANGELOG.md)** — Keep a Changelog-style history
-- **[docs/architecture/README.md](docs/architecture/README.md)** — crate
-  dependency graph (Mermaid), generated from actual `Cargo.toml` path
-  dependencies
-- **[API_REFERENCE.md](API_REFERENCE.md)** — per-crate API reference (see individual crate doc comments for the authoritative simulation-boundary notes)
-- **[`docs/archive/`](docs/archive/)** — 23 older docs (completion/release/
-  milestone summaries, phase plans, the original `ARCHITECTURE.md`/
-  `ENGINEERING_CHARTER.md`/`SLCI.md`, and early performance-target/research
-  notes) describing an earlier, more marketing-driven characterization of
-  this project ("v1.0.0 Production Ready," "surpasses Linux on every
-  measurable metric," sub-500ms boot claims for a kernel binary that
-  doesn't boot). All 23 now carry a correction notice at the top pointing
-  back here (three of them — `ARCHITECTURE.md`, `ENGINEERING_CHARTER.md`,
-  `SLCI.md` — didn't have one until this pass, despite containing the same
-  category of claim this README explicitly disowns). Kept for history;
-  this README is the current source of truth.
+- [`CLAUDE.md`](CLAUDE.md) — architecture and implementation guide for this repo
+- [`VISION.md`](VISION.md) — why this repo exists and what it is prototyping
+- [`ROADMAP.md`](ROADMAP.md) — what is built per crate, what is not started, and near-term plans
+- [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) — technical-debt ledger and verification snapshot
+- [`API_REFERENCE.md`](API_REFERENCE.md) — per-crate API reference
+- [`SECURITY.md`](SECURITY.md) — how to report issues
+- [`CHANGELOG.md`](CHANGELOG.md) — Keep a Changelog-style history
+- [`docs/architecture/README.md`](docs/architecture/README.md) — crate dependency graph (Mermaid)
+- [`docs/archive/`](docs/archive/) — older docs kept for history, each carrying a correction notice
+
+## Contributing
+
+Contributions are welcome. There is no `CONTRIBUTING.md` in this repo yet, so the practical workflow is: open an issue describing the change, keep new subsystems honest about their simulation boundaries (every module that cannot do the real thing should say so in its own doc comments), and run `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, and `cargo fmt --check` before opening a PR. This is a single-maintainer project, so review happens on a best-effort basis. Report security issues per [`SECURITY.md`](SECURITY.md).
+
+## Related projects
+
+- [SHER-KERNEL](https://github.com/Mullassery/SHER-KERNEL) — AI-native operating-system kernel with zero-trust security
+- [SHER-Display](https://github.com/Mullassery/SHER-Display) — display server, compositor, and window manager for the SHER OS family
+- [SHER-Graphics](https://github.com/Mullassery/SHER-Graphics) — native graphics architecture (software GPU + Vulkan backend)
+- [SHER-INPUT](https://github.com/Mullassery/SHER-INPUT) — input subsystem that normalizes device activity into a canonical event stream
+- [SHER-Aurora](https://github.com/Mullassery/aurora) — GNOME design system for Rust
+- [SHER-Process-Explorer](https://github.com/Mullassery/SHER-Process-Explorer) — evidence-based Linux process explorer
+- [Browse all projects](https://github.com/Mullassery?tab=repositories)
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
-
-## Contact & Attribution
-
-**Project Author**: Georgi Mammen Mullassery
-**Email**: mullassery@gmail.com
-**GitHub**: [@Mullassery](https://github.com/Mullassery)
+Apache License 2.0 — see [`LICENSE`](LICENSE).
