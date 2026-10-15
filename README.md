@@ -107,15 +107,20 @@ cargo doc --workspace --no-deps --open      # per-crate docs
 
 Contributions are welcome. There is no `CONTRIBUTING.md` in this repo yet, so the practical workflow is: open an issue describing the change, keep new subsystems honest about their simulation boundaries (every module that cannot do the real thing should say so in its own doc comments), and run `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, and `cargo fmt --check` before opening a PR. This is a single-maintainer project, so review happens on a best-effort basis. Report security issues per [`SECURITY.md`](SECURITY.md).
 
-## Related projects
+## Part of the SHER OS family
 
-- [SHER-KERNEL](https://github.com/Mullassery/SHER-KERNEL) — AI-native operating-system kernel with zero-trust security
-- [SHER-Display](https://github.com/Mullassery/SHER-Display) — display server, compositor, and window manager for the SHER OS family
-- [SHER-Graphics](https://github.com/Mullassery/SHER-Graphics) — native graphics architecture (software GPU + Vulkan backend)
-- [SHER-INPUT](https://github.com/Mullassery/SHER-INPUT) — input subsystem that normalizes device activity into a canonical event stream
-- [SHER-Aurora](https://github.com/Mullassery/aurora) — GNOME design system for Rust
-- [SHER-Process-Explorer](https://github.com/Mullassery/SHER-Process-Explorer) — evidence-based Linux process explorer
-- [Browse all projects](https://github.com/Mullassery?tab=repositories)
+SHER-KERNEL is part of the SHER OS family — an AI-native operating system built from scratch in Rust. The subsystems are designed to work together as a coherent OS stack.
+
+| Tool | Role | What it does |
+|---|---|---|
+| [SHER-KERNEL](https://github.com/Mullassery/SHER-KERNEL) | Kernel core | **This project** — core kernel scaffolding: object model, scheduling, memory, driver-lifecycle concepts, and a Linux Kernel Interface (LKI) compatibility layer. |
+| [SHER-Graphics](https://github.com/Mullassery/SHER-Graphics) | Graphics/GPU | GPU abstraction and rendering — software simulation plus a real, working Vulkan/MoltenVK backend. |
+| [SHER-Display](https://github.com/Mullassery/SHER-Display) | Display/compositor | Display server, compositor, and window management. |
+| [SHER-INPUT](https://github.com/Mullassery/SHER-INPUT) | Input | Canonical, backend-independent input event stream — real evdev on Linux, simulated backend for hardware-free testing. |
+| [SHER-Aurora](https://github.com/Mullassery/SHER-Aurora) | Design system | GNOME-style design system — tokens, typography, motion, and an automated WCAG contrast audit. |
+| [SHER-Process-Explorer](https://github.com/Mullassery/SHER-Process-Explorer) | Observability | Evidence-based Linux process investigation tool — /proc telemetry, bpftrace integration, daemon + CLI + desktop UI. |
+
+Each works standalone; they're complementary by design. [Browse all projects →](https://github.com/Mullassery?tab=repositories)
 
 ## License
 
