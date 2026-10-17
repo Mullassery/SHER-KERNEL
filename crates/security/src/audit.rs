@@ -20,7 +20,7 @@ impl AuditLog {
     pub fn log(&mut self, actor: ObjectId, action: impl Into<String>, result: bool) {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         self.events.push(AuditEvent {

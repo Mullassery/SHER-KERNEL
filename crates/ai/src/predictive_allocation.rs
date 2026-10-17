@@ -222,8 +222,7 @@ impl PredictiveAllocator {
         profiles.sort_by(|a, b| {
             b.cpu_usage_pattern
                 .avg_utilization_percent
-                .partial_cmp(&a.cpu_usage_pattern.avg_utilization_percent)
-                .unwrap()
+                .total_cmp(&a.cpu_usage_pattern.avg_utilization_percent)
         });
         profiles
     }

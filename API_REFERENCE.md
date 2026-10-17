@@ -504,5 +504,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-**SHER Kernel API v1.0.0**  
-*Complete API Reference for Production Use*
+**SHER Kernel API** *(workspace version 0.3.0 — see correction notice above)*  
+*Userspace-prototype API reference, not a production-use guarantee*
