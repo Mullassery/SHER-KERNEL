@@ -214,6 +214,26 @@ mod tests {
     }
 
     #[test]
+    fn test_master_allocator_tier0_auto_refills_on_fresh_allocator() {
+        // Regression test: a brand-new allocator must serve 8-64B allocations
+        // without the caller manually pre-filling the Tier 0 caches first.
+        let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
+
+        let ptr = allocator
+            .allocate(32)
+            .expect("Fresh allocator should auto-refill Tier 0");
+        assert!(!ptr.is_null());
+        assert_eq!(allocator.stats.tier0_allocations, 1);
+        assert_eq!(allocator.stats.allocation_failures, 0);
+
+        // And it keeps working past the initial batch, replenishing as needed.
+        for _ in 0..200 {
+            assert!(allocator.allocate(32).is_ok());
+        }
+        assert_eq!(allocator.stats.allocation_failures, 0);
+    }
+
+    #[test]
     fn test_master_allocator_tier1_allocation() {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
 

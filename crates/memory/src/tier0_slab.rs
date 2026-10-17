@@ -65,6 +65,11 @@ impl SizeClass {
 
 /// Per-CPU cache for a single size class
 /// Uses lock-free CAS-based stack for maximum performance
+///
+/// This type is `Send` but **not** `Sync`: it must be owned by a single
+/// CPU/logical thread at a time (or serialized behind a `Mutex`). See the
+/// `Send`/`Sync` note near the bottom of this file for why concurrent access
+/// to one cache is unsound.
 pub struct CpuSlabCache {
     /// Pre-allocated array of object pointers (stack-based)
     /// Index: 0 = empty, N = N objects available
@@ -120,7 +125,13 @@ impl CpuSlabCache {
             match self.stack_ptr.compare_exchange(
                 current,
                 current - 1,
-                Ordering::Release,
+                // Acquire on success: an object's slot is written by
+                // `deallocate` (or `refill_cache`) *before* the length is
+                // published, so observing the decremented length must also
+                // observe that write. The old `Release` success ordering did
+                // not establish that and could return a stale/uninitialised
+                // slot value.
+                Ordering::Acquire,
                 Ordering::Acquire,
             ) {
                 Ok(_) => {
@@ -167,23 +178,28 @@ impl CpuSlabCache {
                 return false;
             }
 
-            // Try to increment stack pointer atomically
+            // Write the object into the slot *before* publishing the new
+            // length. The previous order (CAS first, then store) published
+            // `current + 1` before `objects[current]` had been written, so a
+            // concurrent `allocate()` could observe the new length and hand
+            // back an unwritten (garbage) slot as if it were allocated memory.
+            // With the store first, the `Release` success below still gives
+            // the required ordering: a thread that Acquire-observes the new
+            // length also observes this store.
+            unsafe {
+                let objects = &mut (*self.objects.get());
+                objects[current] = ptr;
+            }
+
             match self.stack_ptr.compare_exchange(
                 current,
                 current + 1,
                 Ordering::Release,
                 Ordering::Acquire,
             ) {
-                Ok(_) => {
-                    // Success! Store the object at current position
-                    unsafe {
-                        let objects = &mut (*self.objects.get());
-                        objects[current] = ptr;
-                    }
-                    return true;
-                }
+                Ok(_) => return true,
                 Err(actual) => {
-                    // CAS failed, retry with actual value
+                    // CAS failed, retry with the actual value
                     current = actual;
                 }
             }
@@ -269,10 +285,20 @@ impl Drop for CpuSlabCache {
     }
 }
 
-// SAFETY: CpuSlabCache is safe to send and share across threads
-// The UnsafeCell is protected by atomic operations on stack_ptr
+// SAFETY: CpuSlabCache is safe to *send* between threads (transferring
+// ownership of the boxed pointer array is fine), but it is deliberately
+// **not** `Sync`: `stack_ptr` is atomic, yet the object slots in `objects`
+// are plain `*mut u8` inside an `UnsafeCell`. The length is published through
+// the atomic, but the slots themselves are not, so two threads mutating the
+// same cache concurrently (e.g. two `deallocate` calls targeting the same
+// slot before either CAS wins, or a `refill_cache` racing a `deallocate`)
+// alias the `UnsafeCell` and can lose or duplicate an object pointer. The
+// cache is designed to be owned by a single CPU/logical thread at a time, so
+// withholding `Sync` makes that invariant a compile-time requirement instead
+// of a documented hope. Callers that need shared access must serialize with a
+// `Mutex` (as `MasterAllocator`'s stress tests do) rather than relying on the
+// per-CPU sharing that an unconditional `unsafe impl Sync` used to permit.
 unsafe impl Send for CpuSlabCache {}
-unsafe impl Sync for CpuSlabCache {}
 
 // ============================================================================
 // TIER 0 ALLOCATOR (PER-CPU ARRAYS)
@@ -288,6 +314,9 @@ pub struct Tier0Allocator {
     /// Number of CPUs (set at initialization)
     num_cpus: usize,
 }
+
+/// Objects fetched from the system allocator when a per-CPU cache is empty.
+const DEFAULT_TIER0_REFILL: usize = 64;
 
 impl Tier0Allocator {
     /// Initialize Tier 0 allocator for the system
@@ -317,6 +346,19 @@ impl Tier0Allocator {
         let size_class = SizeClass::from_size(size)?;
         let cpu_id = get_cpu_id() % self.num_cpus;
         let cache = &self.caches[cpu_id][size_class.as_index()];
+
+        if let Some(ptr) = cache.allocate() {
+            return Some(ptr);
+        }
+
+        // Slow path: this per-CPU cache is empty. Refill it from the system
+        // allocator and retry, instead of surfacing a spurious `OutOfMemory`
+        // to the caller. Previously a freshly-constructed allocator (or one
+        // whose cache had been exhausted) failed every 8-64B allocation until
+        // the caller remembered to invoke `refill_all_caches` manually.
+        if cache.refill_cache(DEFAULT_TIER0_REFILL).is_err() {
+            return None;
+        }
 
         cache.allocate()
     }
@@ -460,12 +502,18 @@ mod tests {
     }
 
     #[test]
-    fn test_tier0_allocator_empty_allocation() {
+    fn test_tier0_allocator_empty_allocation_auto_refills() {
         CpuContext::set(0);
         let allocator = Tier0Allocator::new(4).expect("Failed to create allocator");
 
-        // Cache starts empty, allocation should fail
-        assert!(allocator.allocate(32).is_none());
+        // The cache starts empty, but `allocate` must transparently refill it
+        // from the system allocator rather than returning `None` (the old
+        // behaviour required a manual `refill_all_caches` call first).
+        let ptr = allocator
+            .allocate(32)
+            .expect("allocate should auto-refill an empty cache");
+        assert!(!ptr.is_null());
+        assert!(unsafe { allocator.deallocate(ptr, 32) });
     }
 
     #[test]

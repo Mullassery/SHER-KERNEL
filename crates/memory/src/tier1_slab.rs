@@ -105,11 +105,29 @@ pub struct SlabPage {
     /// Free object indices (stack-based)
     free_stack: Vec<usize>,
 
+    /// Allocated-state bitmap, one entry per object.
+    ///
+    /// `allocated[idx]` is `true` while object `idx` is handed out and `false`
+    /// while it sits on `free_stack`. Used to reject double-frees and
+    /// deallocations of never-allocated objects instead of silently pushing a
+    /// duplicate index onto `free_stack` (which would hand the same address out
+    /// to two callers).
+    allocated: Vec<bool>,
+
     /// Size class for all objects in this slab
     size_class: SizeClass,
 
     /// Coloring offset (cache-line alignment)
     color_offset: usize,
+
+    /// Total number of bytes actually allocated for this slab.
+    ///
+    /// This is `total_size + color_offset`, not just `total_size`: objects are
+    /// laid out starting at `vaddr + color_offset`, so without the extra
+    /// `color_offset` bytes the last object would point past the end of the
+    /// allocation (out-of-bounds). Kept here so `Drop` deallocates the exact
+    /// same layout that `alloc` used.
+    alloc_size: usize,
 }
 
 impl SlabPage {
@@ -119,7 +137,12 @@ impl SlabPage {
         let pages_needed = size_class.pages_needed();
         let total_size = pages_needed * 4096;
 
-        let layout = Layout::from_size_align(total_size, 4096)
+        // Objects start at `color_offset`, so reserve that many extra bytes on
+        // top of the object region. Otherwise the final object would extend
+        // past the end of the allocation (see the `alloc_size` field docs).
+        let alloc_size = total_size + color_offset;
+
+        let layout = Layout::from_size_align(alloc_size, 4096)
             .map_err(|_| Error::AllocationFailed("Invalid slab page layout".to_string()))?;
 
         unsafe {
@@ -142,8 +165,10 @@ impl SlabPage {
                 allocated_count: 0,
                 total_objects,
                 free_stack,
+                allocated: vec![false; total_objects],
                 size_class,
                 color_offset,
+                alloc_size,
             })
         }
     }
@@ -162,6 +187,7 @@ impl SlabPage {
             let ptr = self.vaddr.add(offset);
             self.available_count -= 1;
             self.allocated_count += 1;
+            self.allocated[idx] = true;
             Some(ptr)
         }
     }
@@ -188,20 +214,22 @@ impl SlabPage {
     /// derived from the same allocation`, from `stress_tests::test_stress_chaos`
     /// exercising exactly this cross-slab probing path) — fixed here.
     ///
+    /// The object's allocation state is also checked, so a double-free, a
+    /// deallocation of an object that was never allocated, and a pointer that
+    /// does not sit exactly on an object boundary are all rejected with
+    /// `false` rather than corrupting `free_stack` (a duplicate index there
+    /// would hand the same address out to two callers).
+    ///
     /// # Safety
     /// `ptr` must either have been returned by a previous call to
     /// [`SlabPage::allocate`] on *some* `SlabPage` (not necessarily this
     /// one — the address-range check safely rejects foreign pointers that
     /// fall outside this slab), or must not alias any live Rust reference,
     /// so that the address comparison performed here cannot be mistaken for
-    /// a dereference. Double-freeing the same `ptr` on the slab that
-    /// actually owns it is still a logic bug the caller must avoid (it
-    /// would let a future `allocate()` call hand out the same address
-    /// twice), even though this function no longer invokes UB to detect
-    /// non-ownership.
+    /// a dereference.
     pub unsafe fn deallocate(&mut self, ptr: *mut u8) -> bool {
         if self.available_count >= self.total_objects {
-            return false; // Slab is full
+            return false; // Slab is full, nothing can be outstanding
         }
 
         let obj_size = self.size_class.actual_size();
@@ -215,17 +243,28 @@ impl SlabPage {
         }
 
         let offset = target - base;
-        if offset >= self.total_objects * obj_size {
-            return false;
-        }
 
         if offset < self.color_offset {
             return false;
         }
 
-        let idx = (offset - self.color_offset) / obj_size;
+        // Objects live in `[color_offset, color_offset + total_objects*obj_size)`.
+        // Compare the *offset within the object region* against that region's
+        // size — comparing the absolute offset against `total_objects*obj_size`
+        // would wrongly reject valid objects whenever `color_offset > 0`.
+        let rel = offset - self.color_offset;
 
-        if idx < self.total_objects {
+        // Must land exactly on an object boundary, not part-way through one.
+        if rel % obj_size != 0 {
+            return false;
+        }
+
+        let idx = rel / obj_size;
+
+        // Reject double-frees and never-allocated objects: only objects
+        // currently marked allocated may be returned to the free stack.
+        if idx < self.total_objects && self.allocated[idx] {
+            self.allocated[idx] = false;
             self.free_stack.push(idx);
             self.available_count += 1;
             self.allocated_count -= 1;
@@ -250,9 +289,7 @@ impl SlabPage {
 impl Drop for SlabPage {
     fn drop(&mut self) {
         unsafe {
-            let pages_needed = self.size_class.pages_needed();
-            let total_size = pages_needed * 4096;
-            let layout = Layout::from_size_align(total_size, 4096).unwrap();
+            let layout = Layout::from_size_align(self.alloc_size, 4096).unwrap();
             dealloc(self.vaddr, layout);
         }
     }
@@ -374,11 +411,17 @@ impl SocketSlabCache {
         }
     }
 
-    /// Shrink: destroy empty slabs
+    /// Shrink: destroy empty slabs.
+    ///
+    /// Only slabs that are actually removed are counted as destructions;
+    /// previously this added the number of *surviving* slabs to
+    /// `slab_destructions`, so the statistic grew even when nothing was freed.
     pub fn shrink(&mut self) {
+        let before = self.partial_slabs.len() + self.full_slabs.len();
         self.partial_slabs.retain(|slab| !slab.is_empty());
         self.full_slabs.retain(|slab| !slab.is_empty());
-        self.stats.slab_destructions += self.partial_slabs.len() + self.full_slabs.len();
+        let after = self.partial_slabs.len() + self.full_slabs.len();
+        self.stats.slab_destructions += before - after;
     }
 
     pub fn slab_count(&self) -> usize {
@@ -584,6 +627,99 @@ mod tests {
         assert!(unsafe { slab.deallocate(ptr1) });
         assert_eq!(slab.allocated_count, 0);
         assert!(slab.is_empty());
+    }
+
+    /// Regression test for an out-of-bounds bug: objects are laid out from
+    /// `vaddr + color_offset`, but the slab only allocated `pages_needed*4096`
+    /// bytes. With the maximum page-color offset (4032, from
+    /// `(color_counter*64) % 4096`) the final object pointer landed far past
+    /// the end of the allocation. The slab now reserves `color_offset` extra
+    /// bytes, so every object — including the last — stays within the
+    /// allocation, and full capacity is preserved.
+    #[test]
+    fn test_colored_slab_objects_stay_in_bounds() {
+        let color_offset = 4032; // maximal color offset for a 4 KiB slab
+        let obj_size = SizeClass::Bytes256.actual_size();
+        let mut slab = SlabPage::new(SizeClass::Bytes256, color_offset).expect("Failed to create slab");
+
+        assert_eq!(slab.available_count, 16, "full capacity must be preserved");
+
+        let base = slab.vaddr as usize;
+        let end = base + slab.alloc_size;
+
+        let mut ptrs: Vec<usize> = Vec::new();
+        while let Some(p) = slab.allocate() {
+            let addr = p as usize;
+            assert!(addr >= base + color_offset, "object points below its colored region");
+            assert!(
+                addr + obj_size <= end,
+                "object out of bounds: addr={:#x} end={:#x}",
+                addr,
+                end
+            );
+            assert_eq!((addr - base) % obj_size, color_offset % obj_size);
+            ptrs.push(addr);
+        }
+
+        assert_eq!(ptrs.len(), 16, "all objects must be allocatable");
+        ptrs.sort_unstable();
+        ptrs.dedup();
+        assert_eq!(ptrs.len(), 16, "allocated addresses must be distinct");
+
+        // Every object, including the highest-indexed one, must be accepted back.
+        assert!(slab.is_full());
+        for addr in ptrs {
+            assert!(unsafe { slab.deallocate(addr as *mut u8) });
+        }
+        assert!(slab.is_empty());
+        assert_eq!(slab.available_count, 16);
+    }
+
+    #[test]
+    fn test_slab_page_rejects_double_free_and_bad_offsets() {
+        let mut slab = SlabPage::new(SizeClass::Bytes256, 0).expect("Failed to create slab");
+        let ptr = slab.allocate().expect("First allocation failed");
+
+        assert!(unsafe { slab.deallocate(ptr) });
+        // Second free of the same pointer must be rejected (would otherwise
+        // push a duplicate index and hand the same address out twice).
+        assert!(!unsafe { slab.deallocate(ptr) });
+        assert_eq!(slab.allocated_count, 0);
+        assert_eq!(slab.available_count, 16);
+
+        // A pointer that is not on an object boundary must be rejected.
+        let interior = unsafe { ptr.add(1) };
+        assert!(!unsafe { slab.deallocate(interior) });
+
+        // A pointer to an object that was never allocated must be rejected.
+        let never_allocated = unsafe { slab.vaddr.add(3 * SizeClass::Bytes256.actual_size()) };
+        assert!(!unsafe { slab.deallocate(never_allocated) });
+        assert_eq!(slab.available_count, 16);
+    }
+
+    #[test]
+    fn test_cache_shrink_counts_only_destroyed_slabs() {
+        let mut cache = SocketSlabCache::new(SizeClass::Bytes256);
+        let p1 = cache.allocate().expect("First allocation failed");
+        let p2 = cache.allocate().expect("Second allocation failed");
+        assert_eq!(cache.slab_count(), 1);
+
+        // A slab still holding a live object must survive shrink, and that
+        // must not be recorded as a destruction.
+        cache.shrink();
+        assert_eq!(cache.slab_count(), 1);
+        assert_eq!(cache.stats.slab_destructions, 0);
+
+        // Freeing everything empties the slab, so the next shrink destroys it.
+        assert!(unsafe { cache.deallocate(p1) });
+        assert!(unsafe { cache.deallocate(p2) });
+        cache.shrink();
+        assert_eq!(cache.slab_count(), 0);
+        assert_eq!(cache.stats.slab_destructions, 1);
+
+        // Shrinking again has nothing to destroy and must not inflate the count.
+        cache.shrink();
+        assert_eq!(cache.stats.slab_destructions, 1);
     }
 
     #[test]
