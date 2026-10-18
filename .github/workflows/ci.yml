@@ -53,7 +53,69 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: cargo audit
-        run: |
-          cargo install cargo-audit --locked
-          cargo audit
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Uses the RustSec advisory database via the maintained Action instead
+      # of `cargo install cargo-audit` on every run: no per-run compile of
+      # the tool, and the advisory DB is fetched/updated by the Action so a
+      # transient crates.io/DB hiccup does not turn the job red spuriously
+      # (SHERKERNEL-010).
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  miri:
+    name: miri (sher_memory)
+    runs-on: ubuntu-latest
+    # Bounded Miri run over the memory crate, which is where the unsafe
+    # slab/free-list code lives (SHERKERNEL-009). Scoped to a single crate
+    # so the job stays within a reasonable time budget; the allocator's
+    # stress tests are the target.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly Rust with miri
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: miri-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            miri-cargo-
+
+      - name: cargo miri setup
+        run: cargo +nightly miri setup
+
+      - name: cargo miri test (sher_memory)
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
+        run: cargo +nightly miri test -p sher_memory
+
+  fuzz-smoke:
+    name: fuzz smoke (memory allocator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      # Bounded run (30s) with AddressSanitizer so a regression in the
+      # allocator's slab/free-list handling fails the job without needing a
+      # long fuzzing session.
+      - name: cargo fuzz run allocator (bounded)
+        run: cargo +nightly fuzz run allocator -- -max_total_time=30 -rss_limit_mb=4096

@@ -640,7 +640,8 @@ mod tests {
     fn test_colored_slab_objects_stay_in_bounds() {
         let color_offset = 4032; // maximal color offset for a 4 KiB slab
         let obj_size = SizeClass::Bytes256.actual_size();
-        let mut slab = SlabPage::new(SizeClass::Bytes256, color_offset).expect("Failed to create slab");
+        let mut slab =
+            SlabPage::new(SizeClass::Bytes256, color_offset).expect("Failed to create slab");
 
         assert_eq!(slab.available_count, 16, "full capacity must be preserved");
 
@@ -650,7 +651,10 @@ mod tests {
         let mut ptrs: Vec<usize> = Vec::new();
         while let Some(p) = slab.allocate() {
             let addr = p as usize;
-            assert!(addr >= base + color_offset, "object points below its colored region");
+            assert!(
+                addr >= base + color_offset,
+                "object points below its colored region"
+            );
             assert!(
                 addr + obj_size <= end,
                 "object out of bounds: addr={:#x} end={:#x}",

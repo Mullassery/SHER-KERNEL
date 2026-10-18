@@ -51,7 +51,23 @@ tagged.
   alone (unsafe-code `# Safety` docs, `cargo audit`/fuzzing CI — both still
   flagged as real gaps, not silently fixed).
 
+### Added
+- `fuzz/`: a structured `cargo-fuzz` target (`allocator`) that drives
+  `MasterAllocator`'s `allocate`/`deallocate`/`refill`/`maintain` API from
+  arbitrary bytes, tracking live pointers so each is eventually returned —
+  to catch the OOB-slab, publish-before-store and never-allocated-pointer
+  bugs the slab tiers were prone to (SHERKERNEL-001/002/007). Built with
+  `cargo +nightly fuzz build allocator`; CI runs a bounded 30 s
+  AddressSanitizer smoke run on every push/PR.
+- `.github/workflows/ci.yml`: a bounded `miri` job scoped to `sher_memory`
+  (SHERKERNEL-009) and a dedicated `audit` job.
+
 ### Changed
+- `.github/workflows/ci.yml`: replaced the per-run `cargo install cargo-audit`
+  step (network-dependent, unpinned, and re-run once per matrix target) with
+  the maintained `rustsec/audit-check` Action in its own job, so a transient
+  advisory-DB fetch no longer turns the build red and the tool is not
+  recompiled from crates.io on every run (SHERKERNEL-010).
 - Documentation-honesty pass (this pass): fixed `Cargo.lock` being
   gitignored/untracked despite this workspace producing a real binary
   (`sher-kernel`) and benches — it's now committed. Corrected a stale
