@@ -14,6 +14,13 @@ tagged.
 
 ## [Unreleased]
 
+### Added
+- `docs/architecture/hardware-interop.md`: a platform/architecture interoperability
+  matrix (Linux x86_64, Linux aarch64, macOS arm64) stating which capabilities are
+  supported and which are explicitly not (real KVM/hypervisor, bare metal, ring-0,
+  binary-compatible syscall ABI), and answering the ARM64-vs-x86_64 KVM question
+  directly (RECHECK-040).
+
 ### Fixed
 - `crates/kernel/src/kernel.rs`: `SherKernel::new()` and `::uptime()` both
   called `SystemTime::now().duration_since(UNIX_EPOCH).unwrap()`, which

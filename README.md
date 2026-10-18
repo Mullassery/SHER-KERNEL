@@ -101,6 +101,7 @@ cargo doc --workspace --no-deps --open      # per-crate docs
 - [`SECURITY.md`](SECURITY.md) — how to report issues
 - [`CHANGELOG.md`](CHANGELOG.md) — Keep a Changelog-style history
 - [`docs/architecture/README.md`](docs/architecture/README.md) — crate dependency graph (Mermaid)
+- [`docs/architecture/hardware-interop.md`](docs/architecture/hardware-interop.md) — hardware/platform interoperability matrix (Linux x86_64/aarch64, macOS arm64; what is and isn't supported, incl. the KVM question)
 - [`docs/archive/`](docs/archive/) — older docs kept for history, each carrying a correction notice
 
 ## Contributing
