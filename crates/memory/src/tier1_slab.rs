@@ -255,7 +255,7 @@ impl SlabPage {
         let rel = offset - self.color_offset;
 
         // Must land exactly on an object boundary, not part-way through one.
-        if rel % obj_size != 0 {
+        if !rel.is_multiple_of(obj_size) {
             return false;
         }
 
