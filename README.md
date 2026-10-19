@@ -104,6 +104,11 @@ cargo doc --workspace --no-deps --open      # per-crate docs
 - [`docs/architecture/hardware-interop.md`](docs/architecture/hardware-interop.md) — hardware/platform interoperability matrix (Linux x86_64/aarch64, macOS arm64; what is and isn't supported, incl. the KVM question)
 - [`docs/archive/`](docs/archive/) — older docs kept for history, each carrying a correction notice
 
+## Queue status
+
+Shipped, blocked/failed, and rejected work for this repository is documented in
+[`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+
 ## Contributing
 
 Contributions are welcome. There is no `CONTRIBUTING.md` in this repo yet, so the practical workflow is: open an issue describing the change, keep new subsystems honest about their simulation boundaries (every module that cannot do the real thing should say so in its own doc comments), and run `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, and `cargo fmt --check` before opening a PR. This is a single-maintainer project, so review happens on a best-effort basis. Report security issues per [`SECURITY.md`](SECURITY.md).
