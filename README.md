@@ -114,11 +114,6 @@ cargo doc --workspace --no-deps --open      # per-crate docs
 
 Full shipped/blocked/rejected detail: [`QUEUE_STATUS.md`](QUEUE_STATUS.md).
 
-## Queue status
-
-Shipped, blocked/failed, and rejected work for this repository is documented in
-[`QUEUE_STATUS.md`](QUEUE_STATUS.md).
-
 ## Contributing
 
 Contributions are welcome. There is no `CONTRIBUTING.md` in this repo yet, so the practical workflow is: open an issue describing the change, keep new subsystems honest about their simulation boundaries (every module that cannot do the real thing should say so in its own doc comments), and run `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, and `cargo fmt --check` before opening a PR. This is a single-maintainer project, so review happens on a best-effort basis. Report security issues per [`SECURITY.md`](SECURITY.md).
