@@ -104,6 +104,16 @@ cargo doc --workspace --no-deps --open      # per-crate docs
 - [`docs/architecture/hardware-interop.md`](docs/architecture/hardware-interop.md) — hardware/platform interoperability matrix (Linux x86_64/aarch64, macOS arm64; what is and isn't supported, incl. the KVM question)
 - [`docs/archive/`](docs/archive/) — older docs kept for history, each carrying a correction notice
 
+## Known issues and deferred work
+
+**Blocked / failed:**
+- Miri/fuzz leak job; no bootable kernel.
+
+**Rejected / deferred:**
+- Bootable-kernel/Linux parity.
+
+Full shipped/blocked/rejected detail: [`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+
 ## Queue status
 
 Shipped, blocked/failed, and rejected work for this repository is documented in
