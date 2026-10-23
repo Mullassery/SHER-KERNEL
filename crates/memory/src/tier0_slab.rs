@@ -592,6 +592,96 @@ mod tests {
             .allocate(32)
             .expect("Allocation after deallocation failed");
         assert!(!ptr.is_null());
+    #[test]
+    fn test_tier0_allocator_cache_full() {
+        CpuContext::set(0);
+        let allocator = Tier0Allocator::new(1).expect("Failed to create allocator");
+        allocator.refill_all_caches(100).expect("Failed to refill");
+
+        // Allocate many objects
+        let mut ptrs = Vec::new();
+        for _ in 0..100 {
+            if let Some(ptr) = allocator.allocate(32) {
+                ptrs.push(ptr);
+            } else {
+                break;
+            }
+        }
+
+        // Deallocate some
+        for ptr in ptrs.iter().take(50) {
+            assert!(unsafe { allocator.deallocate(*ptr, 32) });
+        }
+
+        // Should be able to allocate again
+        let ptr = allocator
+            .allocate(32)
+            .expect("Allocation after deallocation failed");
+        assert!(!ptr.is_null());
+    #[test]
+    fn test_tier0_allocator_cache_full() {
+        CpuContext::set(0);
+        let allocator = Tier0Allocator::new(1).expect("Failed to create allocator");
+        allocator.refill_all_caches(100).expect("Failed to refill");
+
+        // Allocate many objects
+        let mut ptrs = Vec::new();
+        for _ in 0..100 {
+            if let Some(ptr) = allocator.allocate(32) {
+                ptrs.push(ptr);
+            } else {
+                break;
+            }
+        }
+
+        // Deallocate some
+        for ptr in ptrs.iter().take(50) {
+            assert!(unsafe { allocator.deallocate(*ptr, 32) });
+        }
+
+        // Should be able to allocate again
+        let ptr = allocator
+            .allocate(32)
+            .expect("Allocation after deallocation failed");
+        assert!(!ptr.is_null());
+    #[test]
+    fn test_tier0_allocator_cache_full() {
+        CpuContext::set(0);
+        let allocator = Tier0Allocator::new(1).expect("Failed to create allocator");
+        allocator.refill_all_caches(100).expect("Failed to refill");
+
+        // Allocate many objects
+        let mut ptrs = Vec::new();
+        for _ in 0..100 {
+            if let Some(ptr) = allocator.allocate(32) {
+                ptrs.push(ptr);
+            } else {
+                break;
+            }
+        }
+
+        // Deallocate some
+        for ptr in ptrs.iter().take(50) {
+            assert!(unsafe { allocator.deallocate(*ptr, 32) });
+        }
+
+        // Should be able to allocate again
+        let ptr = allocator
+            .allocate(32)
+            .expect("Allocation after deallocation failed");
+        assert!(!ptr.is_null());
+        ptrs.truncate(50);
+        for p in ptrs {
+            unsafe {
+                let _ = allocator.deallocate(p, 32);
+            }
+        }
+        unsafe {
+            let _ = allocator.deallocate(ptr, 32);
+        }
+    }
+    }
+    }
     }
 
     #[test]

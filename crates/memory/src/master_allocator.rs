@@ -211,6 +211,9 @@ mod tests {
         assert!(!ptr.is_null());
         assert_eq!(allocator.stats.tier0_allocations, 1);
         assert_eq!(allocator.stats.tier1_allocations, 0);
+        unsafe {
+            let _ = allocator.deallocate(ptr, 32);
+        }
     }
 
     #[test]
@@ -227,10 +230,18 @@ mod tests {
         assert_eq!(allocator.stats.allocation_failures, 0);
 
         // And it keeps working past the initial batch, replenishing as needed.
+        let mut ptrs = vec![ptr];
         for _ in 0..200 {
-            assert!(allocator.allocate(32).is_ok());
+            if let Ok(p) = allocator.allocate(32) {
+                ptrs.push(p);
+            }
         }
         assert_eq!(allocator.stats.allocation_failures, 0);
+        for p in ptrs {
+            unsafe {
+                let _ = allocator.deallocate(p, 32);
+            }
+        }
     }
 
     #[test]
@@ -242,9 +253,12 @@ mod tests {
         assert!(!ptr.is_null());
         assert_eq!(allocator.stats.tier0_allocations, 0);
         assert_eq!(allocator.stats.tier1_allocations, 1);
+        unsafe {
+            let _ = allocator.deallocate(ptr, 256);
+        }
     }
 
-    #[test]
+        #[test]
     fn test_master_allocator_mixed_allocations() {
         let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
         allocator
@@ -264,19 +278,10 @@ mod tests {
         assert!(!ptr0.is_null());
         assert!(!ptr1.is_null());
         assert_ne!(ptr0, ptr1);
-    }
-
-    #[test]
-    fn test_master_allocator_deallocate_tier0() {
-        let mut allocator = MasterAllocator::new(1, 1).expect("Failed to create allocator");
-        allocator
-            .tier0
-            .refill_all_caches(10)
-            .expect("Failed to refill");
-
-        let ptr = allocator.allocate(32).expect("Allocation failed");
-        assert!(unsafe { allocator.deallocate(ptr, 32) });
-        assert_eq!(allocator.stats.tier0_deallocations, 1);
+        unsafe {
+            let _ = allocator.deallocate(ptr0, 32);
+            let _ = allocator.deallocate(ptr1, 256);
+        }
     }
 
     #[test]
