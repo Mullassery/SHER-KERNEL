@@ -17,7 +17,7 @@ built or real logic with a documented simulation boundary; `[ ]` means not
 started. Verified this pass via `cargo test --workspace` (768 passing, 0
 failing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt
 --check` (clean), and `cargo clippy --workspace --all-targets -- -D
-warnings` (not clean — see below).
+warnings` (clean as of 2026-10-25).
 
 ## What's built (40 crates, grouped by theme)
 
@@ -111,15 +111,12 @@ warnings` (not clean — see below).
 
 ## Near-term plan (concrete, grounded in the code above)
 
-1. **Fix the `cargo clippy --workspace --all-targets -- -D warnings`
-   failures.** This is real, scoped, already-diagnosed follow-up: warnings
-   (mostly `clippy::clone_on_copy` on `ObjectId`, plus a handful of
-   `identity_op`/`unnecessary_cast`/`module_inception`/`len_zero`/`unit_arg`)
-   in `#[cfg(test)]` code across `ai`, `device_manager`, `driver_runtime`,
-   `kernel`, `lki`, `performance_benchmarks`, `security_audit`,
-   `system_integration`, `wayland_server`, plus one in
-   `memory/benches/allocator_bench.rs`. None require design decisions —
-   this is a cleanup pass, not new architecture.
+1. ~~**Fix the `cargo clippy --workspace --all-targets -- -D warnings`
+   failures.**~~ **Done 2026-10-25.** Also removed a dead, repeatedly-nested
+   `#[test] fn test_tier0_allocator_cache_full` inside another test function
+   in `memory/src/tier0_slab.rs` (clippy `unnameable_test_items`; it had
+   never run and aborted when enabled). Full workspace tests, `cargo fmt
+   --check`, and all-targets clippy with `-D warnings` are green.
 2. **Add fuzz targets for `hardening`/`lki` syscall-parameter validation.**
    The validation logic exists and is unit-tested; cargo-fuzz harnesses
    against malformed/adversarial input would close the gap called out
