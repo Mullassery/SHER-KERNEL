@@ -33,7 +33,7 @@ breakdown.
   dependency graph).
 - **Why this exists / non-goals**: [VISION.md](../VISION.md).
 - **What's built vs. not, and what's next**: [ROADMAP.md](../ROADMAP.md),
-  [ROADMAP_HONEST.md](../ROADMAP_HONEST.md) (technical debt ledger).
+  [../docs/internal/ROADMAP_HONEST.md](../docs/internal/ROADMAP_HONEST.md) (technical debt ledger).
 - **API surface**: [API_REFERENCE.md](../API_REFERENCE.md) — carries its
   own correction notice; prefer `cargo doc --workspace --no-deps --open`
   for the authoritative current API.
@@ -51,7 +51,7 @@ SHER-Kernel/
 ├── README.md                    # Start here: honest project overview
 ├── VISION.md                    # Why this exists, non-goals
 ├── ROADMAP.md                   # What's built, what isn't, near-term plan
-├── ROADMAP_HONEST.md            # Technical debt ledger / verification snapshot
+├── ../docs/internal/ROADMAP_HONEST.md            # Technical debt ledger / verification snapshot
 ├── CLAUDE.md                    # Architecture & implementation guide
 ├── API_REFERENCE.md             # Per-crate API index (see its correction notice)
 ├── CHANGELOG.md                 # Keep a Changelog-style history

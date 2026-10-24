@@ -77,7 +77,7 @@ SHER Kernel is built on core principles that guide all contributions:
 Every pull request must:
 
 1. **Pass all tests**: `cargo test --workspace` with 100% pass rate
-2. **Compile without warnings**: `cargo clippy --workspace -- -D warnings` must be clean (this is what CI enforces; `cargo clippy --workspace --all-targets` currently has pre-existing warnings in test/bench code — see ROADMAP_HONEST.md — don't let a PR add new ones)
+2. **Compile without warnings**: `cargo clippy --workspace -- -D warnings` must be clean (this is what CI enforces; `cargo clippy --workspace --all-targets` currently has pre-existing warnings in test/bench code — see ../docs/internal/ROADMAP_HONEST.md — don't let a PR add new ones)
 3. **Follow naming conventions**:
    - PascalCase for types and modules
    - snake_case for functions and variables

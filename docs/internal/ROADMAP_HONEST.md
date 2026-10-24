@@ -1,6 +1,6 @@
 # ROADMAP_HONEST: technical debt ledger & verification snapshot
 
-This file is a **supplement** to [ROADMAP.md](ROADMAP.md), not a
+This file is a **supplement** to [ROADMAP.md](../../ROADMAP.md), not a
 replacement — ROADMAP.md already documents, in the same honesty register
 this file uses, what's built vs. not-started per crate. This file exists
 specifically to hold the **technical debt** inventory (outdated tooling,

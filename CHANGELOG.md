@@ -54,7 +54,7 @@ tagged.
   quirk. All changes confined to `#[cfg(test)]`/bench code; no library or
   binary code touched by this cleanup. `cargo test --workspace`: 769
   passed, 0 failed (up from 768 — the new kernel-uptime regression test).
-  See `ROADMAP_HONEST.md` for full detail and what was deliberately left
+  See `docs/internal/ROADMAP_HONEST.md` for full detail and what was deliberately left
   alone (unsafe-code `# Safety` docs, `cargo audit`/fuzzing CI — both still
   flagged as real gaps, not silently fixed).
 
@@ -87,7 +87,7 @@ tagged.
   honesty standard from the prior pass (see `6b45086`, `67423bf`,
   `e5e8386`). Added a correction notice to `API_REFERENCE.md`, the one
   remaining top-level doc still claiming "Version 1.0.0"/"Production Use"/
-  "Phase 13" framing. Added `SECURITY.md`, `ROADMAP_HONEST.md` (technical
+  "Phase 13" framing. Added `SECURITY.md`, `docs/internal/ROADMAP_HONEST.md` (technical
   debt ledger), `.github/dependabot.yml`, issue/PR templates, and
   `docs/architecture/README.md` (crate dependency graph), none of which
   existed before.

@@ -216,7 +216,7 @@ See [INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md) for:
 ## 📚 Documentation
 
 1. **[INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)** - Deploy SHER Kernel
-2. **[API_REFERENCE.md](API_REFERENCE.md)** - Use the APIs
+2. **[API_REFERENCE.md](../../API_REFERENCE.md)** - Use the APIs
 3. **[PHASE_11_ARCHITECTURE.md](PHASE_11_ARCHITECTURE.md)** - Hardware integration design
 4. **[PHASE_12_STATUS.md](PHASE_12_STATUS.md)** - System integration details
 5. **[PROJECT_COMPLETION_SUMMARY.md](PROJECT_COMPLETION_SUMMARY.md)** - Complete project overview
@@ -347,7 +347,7 @@ Built with:
 ## Next Steps
 
 1. **[Install SHER Kernel](INSTALLATION_GUIDE.md)**
-2. **[Review API Reference](API_REFERENCE.md)**
+2. **[Review API Reference](../../API_REFERENCE.md)**
 3. **[Deploy in Production](INSTALLATION_GUIDE.md#deployment)**
 4. **[Run Tests](INSTALLATION_GUIDE.md#verification)**
 

@@ -26,7 +26,7 @@
 ### 2. Architectural Design
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — Four-pillar architecture (boot phases, immutable-first, ARO, lazy loading)
 - **[SLCI.md](SLCI.md)** — SHER Linux Compatibility Interface (translation layer)
-- **[CLAUDE.md](CLAUDE.md)** — Original architecture guide and implementation patterns
+- **[CLAUDE.md](../../CLAUDE.md)** — Original architecture guide and implementation patterns
 - **[PHASE0_SUMMARY.md](PHASE0_SUMMARY.md)** — Phase 0 completion summary
 
 ### 3. This File
@@ -377,7 +377,7 @@ Shell/Application Startup
 2. **Deep dive**: [ARCHITECTURE.md](ARCHITECTURE.md) for four pillars
 3. **Understand compatibility**: [SLCI.md](SLCI.md) for Linux compatibility strategy
 4. **Begin coding**: [QUICK_START.md](QUICK_START.md) for development setup
-5. **Reference**: [CLAUDE.md](CLAUDE.md) for implementation patterns
+5. **Reference**: [CLAUDE.md](../../CLAUDE.md) for implementation patterns
 
 ---
 

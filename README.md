@@ -96,7 +96,7 @@ cargo doc --workspace --no-deps --open      # per-crate docs
 - [`CLAUDE.md`](CLAUDE.md) — architecture and implementation guide for this repo
 - [`VISION.md`](VISION.md) — why this repo exists and what it is prototyping
 - [`ROADMAP.md`](ROADMAP.md) — what is built per crate, what is not started, and near-term plans
-- [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) — technical-debt ledger and verification snapshot
+- [`docs/internal/ROADMAP_HONEST.md`](docs/internal/ROADMAP_HONEST.md) — technical-debt ledger and verification snapshot
 - [`API_REFERENCE.md`](API_REFERENCE.md) — per-crate API reference
 - [`SECURITY.md`](SECURITY.md) — how to report issues
 - [`CHANGELOG.md`](CHANGELOG.md) — Keep a Changelog-style history
@@ -112,7 +112,7 @@ cargo doc --workspace --no-deps --open      # per-crate docs
 **Rejected / deferred:**
 - Bootable-kernel/Linux parity.
 
-Full shipped/blocked/rejected detail: [`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+Full shipped/blocked/rejected detail: [`docs/internal/QUEUE_STATUS.md`](docs/internal/QUEUE_STATUS.md).
 
 ## Contributing
 
