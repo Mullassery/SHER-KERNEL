@@ -196,7 +196,7 @@ SHER Kernel v1.0.0 represents the first production-ready release of a complete, 
 
 ### Quick Start
 ```bash
-git clone https://github.com/Mullassery/SHER-KERNEL.git
+git clone ../SHER-KERNEL
 cd SHER-KERNEL
 cargo build --release
 cargo test --lib
@@ -302,7 +302,7 @@ Built with:
 
 ## 📞 Support
 
-- **GitHub Repository**: https://github.com/Mullassery/SHER-KERNEL
+- **GitHub Repository**: ../SHER-KERNEL
 - **Documentation**: See included guides
 - **Issues**: GitHub Issues
 - **Discussions**: GitHub Discussions

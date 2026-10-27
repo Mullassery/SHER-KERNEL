@@ -444,7 +444,7 @@ Layer 1: Hardware Interface
 
 ## 📞 Support & Resources
 
-- **GitHub**: https://github.com/Mullassery/SHER-KERNEL
+- **GitHub**: ../SHER-KERNEL
 - **Installation**: See [INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)
 - **API Docs**: See [API_REFERENCE.md](../../API_REFERENCE.md)
 - **Release Info**: See [RELEASE_NOTES_1_0_0.md](RELEASE_NOTES_1_0_0.md)

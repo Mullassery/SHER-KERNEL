@@ -441,6 +441,6 @@ This represents the first **complete, coherent operating system** built for the 
 
 **Generated**: August 7, 2026  
 **Repositories**:
-- SHER Kernel: https://github.com/Mullassery/SHER-KERNEL
-- Aurora Design System: https://github.com/Mullassery/aurora
-- Himalayas Browser: https://github.com/Mullassery/Himalayas-Browser
+- SHER Kernel: ../SHER-KERNEL
+- Aurora Design System: ../aurora
+- Himalayas Browser: ../Himalayas-Browser

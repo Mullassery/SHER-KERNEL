@@ -95,7 +95,7 @@ intentionally does not restate those numbers to avoid going stale again.
 
 ## Important Links
 
-- **GitHub**: https://github.com/Mullassery/SHER-KERNEL
+- **GitHub**: ../SHER-KERNEL
 - **Author Email**: mullassery@gmail.com
 - **License**: [Apache License 2.0](../LICENSE)
 

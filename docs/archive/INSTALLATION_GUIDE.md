@@ -50,7 +50,7 @@ make --version
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/Mullassery/SHER-KERNEL.git
+git clone ../SHER-KERNEL
 cd SHER-KERNEL
 ```
 
@@ -381,7 +381,7 @@ cargo install --path .
 
 ## Support & Documentation
 
-- **GitHub**: https://github.com/Mullassery/SHER-KERNEL
+- **GitHub**: ../SHER-KERNEL
 - **API Docs**: `cargo doc --open`
 - **Issues**: GitHub Issues
 - **Discussions**: GitHub Discussions

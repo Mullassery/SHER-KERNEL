@@ -387,5 +387,5 @@ Phase 11 Estimate: 7,000-8,000 LOC, ~80 new tests
 
 **Generated**: August 7, 2026  
 **Repositories**:
-- Aurora Design System: https://github.com/Mullassery/aurora
-- SHER Kernel: https://github.com/Mullassery/SHER-KERNEL
+- Aurora Design System: ../aurora
+- SHER Kernel: ../SHER-KERNEL
